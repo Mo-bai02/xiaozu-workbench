@@ -1,0 +1,9 @@
+node_modules
+dist
+.cache
+.git
+.github
+coverage
+*.log
+README.md
+docs/images
