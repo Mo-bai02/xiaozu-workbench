@@ -167,8 +167,7 @@ export function LogsPage() {
           调用日志
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          记录保存在服务端，<b>按访客隔离</b>：别人打开同一个链接，只能看到自己的记录。
-          服务重启后清空（内存存储）。
+          只显示你自己的调用记录，服务重启后清空。
         </Typography.Paragraph>
       </div>
 

@@ -118,9 +118,9 @@ export function FocusPage() {
 
     if (mode === 'focus') {
       add(focusMinutes, taskId);
-      notify('专注结束', `已完成 ${focusMinutes} 分钟，起来活动一下。`);
+      notify('专注结束', `已完成 ${focusMinutes} 分钟`);
     } else {
-      notify('休息结束', '回来继续吧。');
+      notify('休息结束', '休息时间到。');
     }
   }, [add, focusMinutes, mode, notify, taskId]);
 
@@ -217,7 +217,7 @@ export function FocusPage() {
           专注计时
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          时间可自己调。到点会在页面里弹提醒、同时发一条系统通知 —— 就算你切到别的应用也能看到，不会把你拽回这个页面。
+          到点会弹窗并发送系统通知。
         </Typography.Paragraph>
       </div>
 
@@ -329,14 +329,14 @@ export function FocusPage() {
 
             <div className="focus-notify">
               <BellOutlined />
-              {notifyState === 'granted' && <span>桌面通知已开启，切到别的应用也会提醒</span>}
+              {notifyState === 'granted' && <span>桌面通知已开启</span>}
               {notifyState === 'default' && (
                 <Button size="small" type="link" onClick={() => void Notification.requestPermission().then(setNotifyState)}>
                   开启桌面通知
                 </Button>
               )}
-              {notifyState === 'denied' && <span>桌面通知被拒绝，只剩页面内提醒（可在浏览器设置里改）</span>}
-              {notifyState === 'unsupported' && <span>当前环境不支持桌面通知</span>}
+              {notifyState === 'denied' && <span>通知已被拒绝，可在浏览器设置里开启</span>}
+              {notifyState === 'unsupported' && <span>此浏览器不支持通知</span>}
             </div>
           </Card>
         </Col>
@@ -401,13 +401,8 @@ export function FocusPage() {
         }}
       >
         <p style={{ margin: '8px 0' }}>
-          {mode === 'focus'
-            ? `已经专注 ${focusMinutes} 分钟，起来走两步、看看远处。`
-            : `休息 ${breakMinutes} 分钟结束，准备好就继续。`}
+          {mode === 'focus' ? `专注 ${focusMinutes} 分钟，结束。` : '休息结束。'}
         </p>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          提示窗口不会跳转页面，关掉就还在原地。
-        </Typography.Text>
       </Modal>
     </div>
   );

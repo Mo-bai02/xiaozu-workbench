@@ -81,7 +81,7 @@ export function SharePage() {
       </Card>
 
       <div className="share-foot">
-        这条笔记由作者主动分享，内容存在服务端内存里，服务重启后失效。
+        分享链接在服务重启后失效。
       </div>
     </div>
   );

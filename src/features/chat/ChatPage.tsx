@@ -294,7 +294,7 @@ export function ChatPage() {
                 disabled={messages.length === 0}
               />
             </Tooltip>
-            <Tooltip title="同一个回答，两种更新策略的渲染次数对比。逐 token 模式会明显更卡。">
+            <Tooltip title="对比两种更新策略的提交次数">
               <Segmented
                 size="small"
                 value={strategy}
@@ -315,10 +315,10 @@ export function ChatPage() {
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <span>
-                    问点什么吧 —— 回答会流式输出，顶部胶囊会实时告诉你进度
+                    随便问点什么
                     <br />
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      左侧是会话列表，右键可以重命名或删除
+                      左侧可以切换会话
                     </Typography.Text>
                   </span>
                 }

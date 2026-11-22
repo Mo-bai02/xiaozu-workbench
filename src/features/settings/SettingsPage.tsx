@@ -39,8 +39,7 @@ export function SettingsPage() {
           设置与数据
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          这个工作台的数据全部存在你自己的浏览器里（localStorage），没有云端账号。
-          换电脑、清缓存、换浏览器都会丢 —— 所以导出备份这件事别拖。
+          所有数据存在浏览器本地。换设备或清缓存会丢，建议定期导出。
         </Typography.Paragraph>
       </div>
 
@@ -79,7 +78,7 @@ export function SettingsPage() {
               type="info"
               showIcon
               message="导入会覆盖同名数据"
-              description="比如备份里有 3 条笔记，导入后你现在的笔记会被替换成这 3 条。导入完成会自动刷新页面。"
+              description="导入完成后页面会自动刷新。"
             />
           </Card>
 
@@ -144,7 +143,7 @@ export function SettingsPage() {
                 <Tag color="blue">v1.1</Tag> 10 个模块 · React 18 + TS + Vite + antd
               </span>
               <Typography.Text type="secondary">
-                分享出去的笔记存在服务端内存，服务重启后链接失效；你的原始笔记不会被上传。
+                分享链接在服务重启后失效。原始笔记不会上传。
               </Typography.Text>
               <Typography.Text type="secondary">
                 AI 调用的 Key 只在 Node 进程里，不会下发到浏览器。

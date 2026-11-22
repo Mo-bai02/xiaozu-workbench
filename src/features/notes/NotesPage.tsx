@@ -150,7 +150,7 @@ export function NotesPage() {
             笔记
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            会议记录、课程笔记、随手记。支持 Markdown 预览，停止输入自动保存。
+            支持 Markdown，停止输入自动保存。
           </Typography.Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={addNote}>
@@ -280,7 +280,7 @@ export function NotesPage() {
                 <Input.TextArea
                   value={draft.content}
                   onChange={(event) => setDraft((prev) => ({ ...prev, content: event.target.value }))}
-                  placeholder="支持 Markdown：# 标题、- 列表、**加粗**、`代码`。用 #标签 可以自动归类。"
+                  placeholder="支持 Markdown，用 #标签 归类"
                   autoSize={{ minRows: 16, maxRows: 30 }}
                   className="note-body-input"
                 />
@@ -312,8 +312,7 @@ export function NotesPage() {
         }
       >
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-          笔记本身只存在你的浏览器里；分享只是把当前内容复制一份到服务端，生成一个只读链接。
-          撤销后链接立即失效。
+          生成只读链接，撤销后立即失效。
         </Typography.Paragraph>
 
         {sharing && <Typography.Text type="secondary">正在生成链接…</Typography.Text>}

@@ -154,7 +154,7 @@ export function AppShell() {
                 <>
                   {menu}
                   {!models.some((m) => m.free) && (
-                    <div className="model-hint">在 .env 配置 DASHSCOPE / SILICONFLOW / ZHIPU / ARK 任一 Key，即可解锁对应模型</div>
+                    <div className="model-hint">配置任一 Key 后，这里会出现对应模型</div>
                   )}
                 </>
               )}

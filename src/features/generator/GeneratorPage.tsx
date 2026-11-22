@@ -64,8 +64,7 @@ export function GeneratorPage() {
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
           生成式 UI
         </Typography.Title>        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          模型不生成组件代码，只生成一份受约束的 UI Schema；前端用 zod 校验通过后才渲染。
-          这样模型再离谱，最坏结果也只是"渲染失败"，而不是"执行了任意代码"。
+          描述一下，生成表单或表格。
         </Typography.Paragraph>
       </div>
 
@@ -75,7 +74,7 @@ export function GeneratorPage() {
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             autoSize={{ minRows: 2, maxRows: 4 }}
-            placeholder="用一句话描述你想要的表单或列表"
+            placeholder="描述你想要的表单"
           />
         </Space.Compact>
 
@@ -138,7 +137,7 @@ export function GeneratorPage() {
         ) : (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="输入一句描述，模型会生成一份可直接使用的表单或表格"
+            description="描述你想要的表单"
           />
         )}
       </Card>

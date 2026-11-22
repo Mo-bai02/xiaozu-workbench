@@ -152,7 +152,7 @@ export function MembersPage() {
           成员管理
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          支持搜索、状态筛选、多选批量移除；移除成员时，TA 的任务会自动变成未指派。
+          移除成员后，TA 的任务会变成未指派。
         </Typography.Paragraph>
       </div>
 

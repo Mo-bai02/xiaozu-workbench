@@ -123,7 +123,7 @@ export function BoardPage() {
             任务看板
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            拖动卡片在列之间移动；点卡片编辑，右上角菜单可以直接删除或让 AI 拆解。
+            拖动卡片换列，点击卡片编辑。
           </Typography.Paragraph>
         </div>
         <Space wrap>
@@ -326,7 +326,7 @@ export function BoardPage() {
         )}
 
         <div className="drawer-hint">
-          <DragOutlined /> 桌面端可以直接拖动卡片换列；移动端请在上方「状态」里改。
+          <DragOutlined /> 移动端可用上方「状态」改列。
         </div>
       </Drawer>
     </div>

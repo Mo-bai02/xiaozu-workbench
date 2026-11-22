@@ -106,7 +106,7 @@ export function OverviewPage() {
             项目概览
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            「工作台」示例项目 · 数据存在浏览器本地，可直接编辑
+            示例项目，数据存在浏览器本地
           </Typography.Paragraph>
         </div>
         <Button type="primary" icon={<RobotOutlined />} onClick={askAi}>

@@ -159,7 +159,7 @@ export function ExpensesPage() {
             经费账本
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            谁垫的钱、谁该分摊多少，自动算成「谁转给谁」。金额以分为单位存整数，不会出现 0.1 + 0.2 的问题。
+            记完自动算出谁该转给谁。
           </Typography.Paragraph>
         </div>
         <Space wrap>
@@ -229,7 +229,7 @@ export function ExpensesPage() {
             extra={<SwapOutlined />}
           >
             {transfers.length === 0 ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="大家都是平的，不用转钱" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无需转账" />
             ) : (
               <ul className="settle-list">
                 {transfers.map((transfer, index) => (
