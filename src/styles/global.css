@@ -2665,3 +2665,108 @@ html[data-theme='dark'] .alert-banner {
     animation: none !important;
   }
 }
+
+
+/* ---- 顶栏自适应 ---- */
+
+.header-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.header-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .header-extra {
+    display: none;
+  }
+
+  .health-dot {
+    display: inline-block;
+  }
+
+  .group-switch-btn {
+    max-width: 112px;
+  }
+
+  .group-switch-name {
+    max-width: 62px;
+  }
+
+  /* 手机上标题不换行，挤不下就省略 */
+  .header-title {
+    font-size: 13px;
+    max-width: 88px;
+  }
+}
+
+/* ---- 悬浮球菜单跟随方向 ---- */
+
+.fab-root.is-left .fab-menu {
+  right: auto;
+  left: 0;
+  align-items: flex-start;
+}
+
+/* 菜单加一个实底容器，压在卡片上也能看清 */
+.fab-menu {
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+
+.fab-item-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+
+.fab-item-label {
+  font-size: 12px;
+}
+
+@media (max-width: 767px) {
+  .fab {
+    width: 48px;
+    height: 48px;
+    font-size: 19px;
+  }
+
+  .fab-menu {
+    bottom: 58px;
+  }
+
+  .fab-root.is-below .fab-menu {
+    top: 58px;
+  }
+}
+
+.fab-root.is-left .fab-item {
+  flex-direction: row-reverse;
+}
+
+.fab-root.is-below .fab-menu {
+  bottom: auto;
+  top: 66px;
+}

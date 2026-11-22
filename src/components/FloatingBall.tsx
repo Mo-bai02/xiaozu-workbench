@@ -140,6 +140,10 @@ export function FloatingBall() {
 
   if (!point) return null;
 
+  // 球在左半边就把菜单往右展开，贴着顶就把菜单翻到下方，避免被屏幕裁掉
+  const onLeft = point.x + SIZE / 2 < window.innerWidth / 2;
+  const opensBelow = point.y < 220;
+
   const actions = [
     {
       key: 'voice',
@@ -171,7 +175,11 @@ export function FloatingBall() {
   ];
 
   return (
-    <div ref={rootRef} className="fab-root" style={{ left: point.x, top: point.y }}>
+    <div
+      ref={rootRef}
+      className={cn('fab-root', onLeft && 'is-left', opensBelow && 'is-below')}
+      style={{ left: point.x, top: point.y }}
+    >
       {open && (
         <div className="fab-menu">
           {actions.map((action, index) => (

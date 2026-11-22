@@ -68,6 +68,13 @@ const NAV = [
   { key: '/settings', icon: <SettingOutlined />, label: '设置与数据' },
 ];
 
+const HEALTH_DOT: Record<string, string> = {
+  green: '#2f9e63',
+  orange: '#d4a72c',
+  red: '#e5484d',
+  default: '#c4ccd8',
+};
+
 const MENU_ITEMS = [
   { type: 'group' as const, label: '工作台', children: NAV.slice(0, 6) },
   { type: 'group' as const, label: 'AI 能力', children: NAV.slice(6, 9) },
@@ -270,6 +277,7 @@ export function AppShell() {
               </Badge>
             </Popover>
 
+            <span className="header-extra">
             <Tooltip title={SHORTCUT_LABEL + ' 打开命令面板'}>
               <Button
                 size="small"
@@ -318,6 +326,24 @@ export function AppShell() {
               </Tag>
             </Tooltip>
 
+            <Tooltip title="GitHub">
+              <Button
+                size="small"
+                type="text"
+                aria-label="GitHub"
+                icon={<GithubOutlined />}
+                onClick={() => window.open('https://github.com/mobai02/ai-console', '_blank', 'noopener')}
+              />
+            </Tooltip>
+            </span>
+
+            <Tooltip title={healthMeta.tooltip}>
+              <span
+                className="health-dot"
+                style={{ background: HEALTH_DOT[healthMeta.color] ?? '#c4ccd8' }}
+              />
+            </Tooltip>
+
             <Tooltip title={dark ? '切到浅色' : '切到深色'}>
               <Button
                 size="small"
@@ -339,10 +365,26 @@ export function AppShell() {
                   },
                   { type: 'divider' },
                   { key: 'groups', icon: <SwapOutlined />, label: '切换 / 加入小组' },
+                  {
+                    key: 'model',
+                    icon: <ExperimentOutlined />,
+                    label: `模型（${activeModel?.label ?? '-'}）`,
+                    children: models.map((model) => ({
+                      key: `model:${model.id}`,
+                      label: model.label,
+                    })),
+                  },
+                  {
+                    key: 'theme',
+                    icon: dark ? <BulbFilled /> : <BulbOutlined />,
+                    label: dark ? '切到浅色' : '切到深色',
+                  },
                   { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
                 ],
                 onClick: ({ key }) => {
                   if (key === 'groups') navigate('/groups');
+                  if (key === 'theme') toggleDark();
+                  if (key.startsWith('model:')) setModelId(key.slice(6));
                   if (key === 'logout') {
                     void logout().then(() => navigate('/login', { replace: true }));
                   }
@@ -353,16 +395,6 @@ export function AppShell() {
                 {user?.displayName?.slice(0, 1) ?? '?'}
               </Avatar>
             </Dropdown>
-
-            <Tooltip title="GitHub">
-              <Button
-                size="small"
-                type="text"
-                aria-label="GitHub"
-                icon={<GithubOutlined />}
-                onClick={() => window.open('https://github.com/mobai02/ai-console', '_blank', 'noopener')}
-              />
-            </Tooltip>
           </Space>
         </Header>
 
