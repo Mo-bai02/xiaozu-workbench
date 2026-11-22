@@ -1,16 +1,21 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Avatar, Button, Empty, Input, Segmented, Space, Tooltip, Typography } from 'antd';
 import {
   ClearOutlined,
+  CopyOutlined,
+  DownOutlined,
+  ReloadOutlined,
   RobotOutlined,
   SendOutlined,
   StopOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { DynamicIsland } from '@/components/DynamicIsland';
+import { FloatingBall } from '@/components/FloatingBall';
 import { Markdown } from '@/components/Markdown';
-import { env } from '@/env';
 import { formatMs, formatNumber } from '@/lib/utils';
+import { useUIStore } from '@/store/ui';
 import { useChat, type ChatItem, type RenderStrategy } from './useChat';
 
 const SUGGESTIONS = [
@@ -19,9 +24,26 @@ const SUGGESTIONS = [
   'SSE 流式渲染为什么要用 requestAnimationFrame 批量更新？',
 ];
 
-function Bubble({ item }: { item: ChatItem }) {
+interface BubbleProps {
+  item: ChatItem;
+  isLast: boolean;
+  onRegenerate: () => void;
+}
+
+function Bubble({ item, isLast, onRegenerate }: BubbleProps) {
   const isUser = item.role === 'user';
   const streaming = item.status === 'streaming';
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(item.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <div className={isUser ? 'msg msg-user' : 'msg msg-ai'}>
@@ -66,28 +88,44 @@ function Bubble({ item }: { item: ChatItem }) {
             description={item.error ?? '请检查网络或后端服务'}
           />
         )}
+
+        {!isUser && !streaming && item.content && (
+          <div className="msg-actions">
+            <button type="button" onClick={copy}>
+              <CopyOutlined /> {copied ? '已复制' : '复制'}
+            </button>
+            {isLast && (
+              <button type="button" onClick={onRegenerate}>
+                <ReloadOutlined /> 重新生成
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export function ChatPage() {
-  const { messages, streaming, metrics, strategy, setStrategy, send, stop, clear } = useChat();
+  const { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, clear } = useChat();
   const [input, setInput] = useState('');
+  const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const demoStarted = useRef(false);
+  const toggleDark = useUIStore((s) => s.toggleDark);
 
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistantId = lastAssistant?.id;
   const lastContent = messages[messages.length - 1]?.content ?? '';
 
-  // ?demo=1：打开即自动跑一段回答，方便录屏 / 截图 / 面试演示
-  useEffect(() => {
-    if (demoStarted.current) return;
-    const isDemo = new URLSearchParams(window.location.search).get('demo') === '1';
-    if (!isDemo) return;
-    demoStarted.current = true;
-    void send('SSE 流式渲染为什么要用 requestAnimationFrame 批量更新？');
-  }, [send]);
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    pinnedRef.current = true;
+    setAtBottom(true);
+  };
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -95,10 +133,20 @@ export function ChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [lastContent, messages.length]);
 
+  // ?demo=1：打开即自动跑一段回答，方便录屏 / 截图 / 面试演示
+  useEffect(() => {
+    if (demoStarted.current) return;
+    if (new URLSearchParams(window.location.search).get('demo') !== '1') return;
+    demoStarted.current = true;
+    void send('SSE 流式渲染为什么要用 requestAnimationFrame 批量更新？');
+  }, [send]);
+
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    pinnedRef.current = nearBottom;
+    setAtBottom(nearBottom);
   };
 
   const submit = () => {
@@ -106,10 +154,20 @@ export function ChatPage() {
     void send(input);
     setInput('');
     pinnedRef.current = true;
+    setAtBottom(true);
   };
 
   return (
     <div className="chat-page">
+      <DynamicIsland
+        streaming={streaming}
+        status={lastAssistant?.status}
+        metrics={metrics}
+        error={lastAssistant?.error}
+        onStop={stop}
+        onRetry={regenerate}
+      />
+
       <div className="metrics-bar">
         <Space size={8} wrap>
           <span className="metric">
@@ -143,10 +201,10 @@ export function ChatPage() {
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 <span>
-                  问点什么吧 —— 回答会流式输出，并实时统计首字延迟与渲染次数
+                  问点什么吧 —— 回答会流式输出，顶部胶囊会实时告诉你进度
                   <br />
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    数据来源：{env.useMock ? '内置 mock 服务' : '真实接口'}
+                    右下角悬浮球可以拖动，点开有快捷操作
                   </Typography.Text>
                 </span>
               }
@@ -162,11 +220,22 @@ export function ChatPage() {
         ) : (
           <div className="msg-list">
             {messages.map((item) => (
-              <Bubble key={item.id} item={item} />
+              <Bubble
+                key={item.id}
+                item={item}
+                isLast={item.id === lastAssistantId}
+                onRegenerate={regenerate}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {!atBottom && messages.length > 0 && (
+        <button type="button" className="to-bottom" onClick={() => scrollToBottom()}>
+          <DownOutlined /> 最新
+        </button>
+      )}
 
       <div className="composer">
         <Input.TextArea
@@ -196,6 +265,12 @@ export function ChatPage() {
           <Button icon={<ClearOutlined />} onClick={clear} disabled={streaming || messages.length === 0} />
         </Tooltip>
       </div>
+
+      <FloatingBall
+        onNewChat={clear}
+        onScrollBottom={() => scrollToBottom()}
+        onToggleTheme={toggleDark}
+      />
     </div>
   );
 }

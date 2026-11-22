@@ -1,10 +1,10 @@
 # AI Console
 
-**一个可直接演示的 AI 前端工作台**：流式对话、生成式 UI、调用日志。
-React 18 + TypeScript + Vite 5 + antd 5，零后端依赖即可跑通（内置 mock SSE 服务）。
+**一个能真跑起来的 AI 前端工作台**：流式对话、生成式 UI、调用日志。
+React 18 + TypeScript + Vite 5 + antd 5，配一个零依赖的 Node 服务，**填入自己的 API Key 就是真的在对话**。
 
 <p align="center">
-  <img src="docs/images/chat.png" alt="流式对话" width="880" />
+  <img src="docs/images/chat.png" alt="流式对话 + 灵动岛" width="880" />
 </p>
 
 <p align="center">
@@ -19,36 +19,42 @@ React 18 + TypeScript + Vite 5 + antd 5，零后端依赖即可跑通（内置 m
 ```bash
 git clone <your-repo> && cd ai-console
 npm install
-npm run dev          # 同时起 mock 服务(8787) 和 vite(5173)
+
+cp .env.example .env      # Windows: copy .env.example .env
+# 打开 .env，把 LLM_API_KEY 换成你自己的（不填也能跑，服务端会走内置 mock）
+
+npm run dev
 ```
 
-打开 <http://localhost:5173>。**不需要任何 API Key** —— mock 服务会真的用 SSE 推流。
-
-想直接看效果：`/chat?demo=1`、`/generator?demo=1` 会自动跑一次演示。
+打开 <http://localhost:5173>。
 
 | 命令 | 作用 |
 |---|---|
-| `npm run dev` | mock 服务 + 开发服务器 |
+| `npm run dev` | 同时启动 API 服务(8787) + 前端(5173) |
+| `npm run api` | 只启动 API 服务 |
 | `npm run build` | 类型检查 + 生产构建 |
-| `npm run preview` | 预览构建产物 |
+| `npm run preview` | 预览构建产物（已配置 /api 代理） |
 | `npm test` | 单元测试（Vitest） |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | 仅类型检查 |
+
+**API Key 只存在于 Node 进程**（`server/index.mjs` 读 `.env`），永远不会被打包进浏览器。
+
+支持任何 OpenAI 兼容接口：DeepSeek、通义千问、智谱、硅基流动、vLLM、Ollama。
 
 ---
 
 ## 三个页面
 
 ### 1. 流式对话 `/chat`
-SSE 逐字输出、Markdown 实时渲染、代码块复制、停止生成、错误提示。
-顶部实时显示 **首字延迟 / 字符数 / React 渲染次数**，右上角可以切换「rAF 批量」与「逐 token」两种更新策略对比。
+SSE 逐字输出、Markdown 实时渲染、代码块复制、停止生成、**重新生成**、错误提示。
+顶部有一个**灵动岛**：生成中显示耗时与进度，点开能看首字延迟 / 字符数 / 渲染次数，还能直接停止；失败时停留并给出重试。
+右下角有**悬浮球**：可拖动、松手吸附到边缘，点开是「新建对话 / 回到最新 / 切换主题」。
 
 ### 2. 生成式 UI `/generator`
-输入一句自然语言 → 模型返回一份 **UI Schema** → zod 校验 → 渲染成 antd 表单或表格。
-可以直接提交、查看模型原始 JSON。
+一句话描述 → 服务端让模型返回 **UI Schema** → 前端 zod 校验 → 渲染成 antd 表单或表格。
+可以直接提交，也可以展开看模型返回的原始 JSON。
 
 ### 3. 调用日志 `/logs`
-一个后台列表页该有的都在这：筛选、排序、分页、状态标签、统计卡片、详情抽屉、成本估算。
+后台列表页该有的都有：统计卡片、搜索、筛选、排序、分页、状态标签、详情抽屉、成本估算。
 
 ---
 
@@ -65,35 +71,30 @@ SSE 逐字输出、Markdown 实时渲染、代码块复制、停止生成、错�
 chunk1: 'event: delta\ndata: {"te'      chunk2: 'xt":"你好"}\n\n'
 ```
 
-解析器必须持有缓冲区，只在遇到空行时才落地事件。`tests/sse.test.ts` 覆盖了 8 种情况：
-拆包、粘包、多行 data、CRLF、心跳注释、流末尾无空行……
+解析器必须持有缓冲区，只在遇到空行时才落地事件。`tests/sse.test.ts` 覆盖 8 种情况：拆包、粘包、多行 data、CRLF、心跳注释、流末尾无空行……
 
-> mock 服务还会**故意把一行 UTF-8 切在汉字中间**再写出去，用来验证 `TextDecoder({ stream: true })` 用得对。
+> 服务端的 mock 还会**故意把一行 UTF-8 切在汉字中间**再写出去，用来验证 `TextDecoder({ stream: true })` 用得对。
 
 ### 2. 流式 Markdown 的「半成品补全」
 
-模型刚吐到 ```` ```ts ```` 的时候围栏还没闭合，`marked` 会把后面所有内容当成代码块，
-页面就在「代码块」和「正文」之间反复横跳。
+模型刚吐到 ```` ```ts ```` 的时候围栏还没闭合，`marked` 会把后面所有内容当成代码块，页面就在「代码块」和「正文」之间反复横跳。
 
-做法是解析前先补全结构（`repairStreamingMarkdown`）：未闭合围栏补围栏、未闭合加粗补加粗。
-还要注意**代码块里的 `**` 是运算符**，不能当成加粗去补 —— 这条是单测逼出来的。
+做法是解析前先补全结构（`repairStreamingMarkdown`）：未闭合围栏补围栏、未闭合加粗补加粗。还要注意**代码块里的 `**` 是运算符**，不能当成加粗去补 —— 这条是单测逼出来的。
 
 所有模型输出都过 DOMPurify，`dangerouslySetInnerHTML` 只吃消毒后的 HTML。
 
-### 3. rAF 批量渲染 + 可量化的体感指标
+### 3. rAF 批量渲染 + 后台标签页兜底
 
-每个 token 都 `setState`，一次回答就是几百次 React 提交。改成 `requestAnimationFrame` 合并同帧增量。
+每个 token 都 `setState`，一次长回答就是几百次 React 提交。改成用 `requestAnimationFrame` 合并同帧增量。
 
-实测（mock 服务，68 个 chunk）：
+**效果与到达速率相关，这点值得说清楚**：
 
-| 策略 | React 渲染次数 | 说明 |
-|---|---|---|
-| 逐 token | 68 | 每个 chunk 提交一次 |
-| rAF 批量 | **32** | 合并到帧，约为一半 |
+- token 密集到达时（一个网络包里多个 delta），一帧内合并多次更新，渲染次数约减半；
+- token 稀疏到达时（每 16ms 才来一个），rAF 自然就退化成 1:1，**这是正常现象**，不是没生效。
 
-页面上的数字是**跑出来的**，不是写死的文案，可以自己切换对比。
+页面上的数字是实测的，可以切换「rAF 批量 / 逐 token」自己对比。
 
-> 后台标签页里 rAF 会被浏览器暂停，所以加了 120ms 的 `setTimeout` 兜底，避免文字"冻住"。
+> 后台标签页里 rAF 会被浏览器暂停，所以加了 120ms 的 `setTimeout` 兜底，否则切回来文字是"冻住"的 —— 这个 bug 只有真的挂在后台跑过才会遇到。
 
 ### 4. 生成式 UI 走 Schema，不让模型写组件
 
@@ -105,35 +106,53 @@ uiSpecSchema = { title, layout: 'form' | 'table', fields: [{ name, label, type, 
 
 模型只产 JSON，前端用 zod 校验，通过才渲染。模型再离谱，最坏结果是「渲染失败」而不是「XSS / 任意代码执行」。
 
-### 5. 路由懒加载与产物体积
+### 5. mock 与真实模式只差一个环境变量
+
+前端只有一条代码路径（`fetch /api/chat/stream`）；背后是真模型还是 mock，由 **服务端** 决定：
+
+```
+server/index.mjs  →  有 LLM_API_KEY ? 转发给上游 : 内置 mock（仍然真 SSE 推流）
+```
+
+这样不会出现「本地 mock 好使、线上少个分支」的问题。同时 `/api/health` 把当前模式告诉前端，右上角的 `LIVE / MOCK` 标签就是它。
+
+### 6. 路由懒加载与产物体积
 
 | 产物 | 原始 | gzip |
 |---|---|---|
-| index（shell + antd 基础） | 548.9 KB | 173.9 KB |
-| react 运行时 | 160.0 KB | 52.2 KB |
-| ChatPage | 91.9 KB | 33.7 KB |
-| GeneratorPage（按需） | 78.9 KB | 27.2 KB |
-| Table + DatePicker（按需） | 439.9 KB | 137.7 KB |
-| LogsPage（按需） | 31.6 KB | 10.9 KB |
-| CSS | 7.1 KB | 2.3 KB |
+| index（shell + antd 基础） | 549 KB | 174 KB |
+| react 运行时 | 160 KB | 52 KB |
+| ChatPage | 96 KB | 34 KB |
+| GeneratorPage（按需） | 77 KB | 26 KB |
+| Table + DatePicker（按需） | 439 KB | 137 KB |
+| LogsPage（按需） | 31 KB | 10 KB |
+| CSS | 11 KB | 3 KB |
 
 首屏（`/chat`）gzip ≈ **272 KB**，改懒加载前是 **≈436 KB**，降了约 38%。
-重组件（Table / DatePicker）只在进入表格页时才拉取。
+
+---
+
+## 交互细节
+
+| 交互 | 实现要点 |
+|---|---|
+| **灵动岛** | 固定在顶部居中，`transform + opacity` 做弹性进出；生成中/完成/失败三态，完成 1.8s 后自动收起；点一下展开详情 |
+| **悬浮球** | Pointer Events 统一鼠标与触摸；4px 拖动阈值区分"点击/拖拽"；松手吸附到最近边缘；位置存 localStorage，窗口缩放时夹紧回视口 |
+| **消息操作** | 悬停出现「复制 / 重新生成」，触摸设备常显（`@media (hover: none)`） |
+| **回到底部** | 用户上翻时出现浮层按钮，且**不再自动滚到底**（只有贴底时才跟随） |
+| **移动端** | `100dvh` 而非 `100vh`、`env(safe-area-inset-bottom)` 避开底部横条、气泡宽度 `calc(100% - 44px)` 防止长英文溢出 |
 
 ---
 
 ## 脚手架能力
 
-这不是"能跑就行"的玩具配置，而是一套可以复制到下一个项目的默认值：
-
-- **路径别名** `@/` → `src/`（vite + tsconfig 双处配置）
-- **环境变量类型安全**：`src/env.ts` 用 zod 校验，缺配置在第一屏就报错，而不是运行时 undefined
-- **多环境**：`.env.development`（走本地 mock）/ `.env.production`（可指向真实后端）
-- **开发代理**：`/api` → `127.0.0.1:8787`，前端不用处理 CORS
-- **分包**：react 单独成 chunk，其余交给路由懒加载自然拆分
+- **路径别名** `@/` → `src/`（vite + tsconfig 双处）
+- **环境变量类型安全**：`src/env.ts` 用 zod 校验，缺配置第一屏就报错
+- **开发代理 / 预览代理**：`/api` → `127.0.0.1:8787`，前端不处理 CORS
+- **watch 忽略缓存目录**：避免浏览器缓存文件被锁导致 dev server `EBUSY` 崩掉
 - **质量**：ESLint 9 flat config + Prettier + `tsc --noEmit`（strict，含 `noUncheckedIndexedAccess`）
 - **测试**：Vitest + jsdom，25 个用例覆盖协议解析 / Markdown 补全 / Schema 校验
-- **CI**：GitHub Actions（lint → typecheck → test → build）双 Node 版本矩阵
+- **CI**：GitHub Actions（lint → typecheck → test → build）双 Node 矩阵
 - **部署**：多阶段 Dockerfile + nginx（SPA fallback、gzip、静态资源长缓存）
 
 ---
@@ -146,41 +165,45 @@ src/
 ├─ env.ts                    环境变量校验（zod）
 ├─ lib/
 │  ├─ sse.ts                 SSE 协议解析（纯函数，可单测）
-│  ├─ stream.ts              流式请求 + mock 生成器
+│  ├─ stream.ts              流式请求封装
 │  ├─ markdown.ts            半成品补全 + 安全渲染
+│  ├─ health.ts              服务端模式探测
 │  └─ utils.ts
 ├─ components/
-│  ├─ AppShell.tsx           布局、导航、移动端抽屉、主题切换
+│  ├─ AppShell.tsx           布局、导航、移动端抽屉、主题
+│  ├─ DynamicIsland.tsx      灵动岛
+│  ├─ FloatingBall.tsx       可拖动悬浮球
 │  └─ Markdown.tsx           渲染 + 代码块复制
 ├─ features/
 │  ├─ chat/                  useChat 状态机、对话页
 │  ├─ generator/             UI Schema 契约、动态渲染
 │  └─ logs/                  后台列表页
-└─ styles/global.css         设计变量、深色主题、移动端断点
-server/mock.mjs              零依赖 mock 服务（SSE / 生成接口）
+└─ styles/global.css         设计变量、深色主题、断点、动效
+server/index.mjs             零依赖 API 服务（真实转发 / mock / 生成式 UI）
 tests/                       Vitest 用例
 ```
 
 ---
 
-## 移动端适配
+## 环境变量
 
-- antd `Grid.useBreakpoint()` 切换侧边栏 ↔ 抽屉，不做两套代码；
-- 聊天容器用 `100dvh`（而不是 `100vh`），避免移动端浏览器地址栏导致的高度抖动；
-- 输入区 `padding-bottom: calc(12px + env(safe-area-inset-bottom))`，避开 iPhone 底部横条；
-- 气泡 `max-width: calc(100% - 44px)`，长英文单词 `overflow-wrap: anywhere` 强制断行。
-
-<p align="center"><img src="docs/images/mobile.png" alt="移动端" width="300" /></p>
+| 变量 | 位置 | 说明 |
+|---|---|---|
+| `LLM_API_KEY` | `.env`（服务端） | 上游模型的 Key，**不会进浏览器** |
+| `LLM_BASE_URL` | `.env` | OpenAI 兼容地址，默认 DeepSeek |
+| `LLM_MODEL` | `.env` | 模型名 |
+| `VITE_API_BASE` | `.env.development/.production` | 前端请求前缀，默认 `/api` |
+| `VITE_PROXY_TARGET` | `.env.development` | 开发代理目标，默认 `127.0.0.1:8787` |
 
 ---
 
 ## Roadmap
 
-- [ ] 接入真实后端（`VITE_USE_MOCK=false` 后走 `/chat/stream`，协议已对齐）
 - [ ] 多轮上下文裁剪（按 token 预算滑窗 + 摘要）
-- [ ] 对话持久化（IndexedDB）与历史会话列表
+- [ ] 会话持久化（IndexedDB）与历史会话列表
 - [ ] 虚拟列表（上千条消息时只渲染可视区）
-- [ ] Playwright E2E（首字延迟、流式渲染、移动端断点）
+- [ ] 断线重连（`Last-Event-ID` + 指数退避）
+- [ ] Playwright E2E
 
 ## License
 

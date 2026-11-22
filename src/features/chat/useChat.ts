@@ -3,6 +3,7 @@ import { streamChat, type ChatMessage, type StreamStats } from '@/lib/stream';
 import { uid } from '@/lib/utils';
 
 export type ChatStatus = 'streaming' | 'done' | 'error' | 'aborted';
+export type RenderStrategy = 'raf' | 'per-token';
 
 export interface ChatItem {
   id: string;
@@ -13,11 +14,9 @@ export interface ChatItem {
   error?: string;
 }
 
-export type RenderStrategy = 'raf' | 'per-token';
-
 export interface LiveMetrics {
   chars: number;
-  /** React 实际提交的渲染次数 —— 这就是量化"卡不卡"的指标 */
+  /** React 实际提交的渲染次数 —— 量化"卡不卡"的指标 */
   renders: number;
   ttftMs: number;
 }
@@ -28,9 +27,8 @@ const EMPTY_METRICS: LiveMetrics = { chars: 0, renders: 0, ttftMs: 0 };
  * 对话状态机。
  *
  * 关键点都在「怎么把 token 变成 UI」上：
- * - 逐 token setState：React 一次流式回答要提交几百次渲染，移动端直接掉帧；
+ * - 逐 token setState：一次流式回答要提交几百次渲染，移动端直接掉帧；
  * - rAF 批量：把同一帧内到达的 token 合并成一次提交，渲染次数 ≈ 帧数。
- * 页面上那排指标（渲染次数、首字延迟）是实测出来的，不是写死的文案。
  */
 export function useChat() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -86,7 +84,6 @@ export function useChat() {
       }
 
       if (strategyRef.current === 'per-token') {
-        // 对照组：每个 token 直接提交一次
         rendersRef.current += 1;
         patchLast((item) => ({ ...item, content: item.content + text }));
         setMetrics((m) => ({ ...m, chars: charsRef.current, renders: rendersRef.current }));
@@ -97,7 +94,7 @@ export function useChat() {
       if (rafRef.current === null) {
         const frameId = requestAnimationFrame(flush);
         rafRef.current = frameId;
-        // 后台标签页里 rAF 会被暂停，加一个 120ms 的兜底，避免文字"冻住"
+        // 后台标签页里 rAF 会被暂停，用 120ms 兜底，避免文字"冻住"
         timeoutRef.current = window.setTimeout(() => {
           if (rafRef.current === frameId) {
             cancelAnimationFrame(frameId);
@@ -109,10 +106,10 @@ export function useChat() {
     [flush, patchLast],
   );
 
-  const send = useCallback(
-    async (input: string) => {
-      const text = input.trim();
-      if (!text || streaming) return;
+  /** 真正跑一次请求：history 是"喂给模型的历史"，addUser 决定要不要在界面上追加用户气泡 */
+  const run = useCallback(
+    async (text: string, history: ChatMessage[], addUser: boolean) => {
+      if (streaming) return;
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -124,14 +121,10 @@ export function useChat() {
       setMetrics(EMPTY_METRICS);
       setStreaming(true);
 
-      const history: ChatMessage[] = messages
-        .filter((m) => m.status !== 'error')
-        .map((m) => ({ role: m.role, content: m.content }));
-
       setMessages((prev) => [
         ...prev,
-        { id: uid('u'), role: 'user', content: text, status: 'done' },
-        { id: uid('a'), role: 'assistant', content: '', status: 'streaming' },
+        ...(addUser ? [{ id: uid('u'), role: 'user' as const, content: text, status: 'done' as const }] : []),
+        { id: uid('a'), role: 'assistant' as const, content: '', status: 'streaming' as const },
       ]);
 
       try {
@@ -166,8 +159,36 @@ export function useChat() {
         setMetrics((m) => ({ ...m, chars: charsRef.current, renders: rendersRef.current }));
       }
     },
-    [messages, onDelta, patchLast, streaming],
+    [onDelta, patchLast, streaming],
   );
+
+  const send = useCallback(
+    (input: string) => {
+      const text = input.trim();
+      if (!text || streaming) return;
+      const history: ChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
+      void run(text, history, true);
+    },
+    [messages, run, streaming],
+  );
+
+  /** 重新生成最后一条回答：去掉它，用同样的上下文再问一次 */
+  const regenerate = useCallback(() => {
+    if (streaming) return;
+    const lastUserIndex = [...messages].map((m) => m.role).lastIndexOf('user');
+    if (lastUserIndex < 0) return;
+    const lastUser = messages[lastUserIndex];
+    if (!lastUser) return;
+
+    const history: ChatMessage[] = messages
+      .slice(0, lastUserIndex)
+      .map((m) => ({ role: m.role, content: m.content }));
+    setMessages((prev) => {
+      const next = prev.slice(0, lastUserIndex + 1);
+      return next[next.length - 1]?.role === 'user' ? next : prev;
+    });
+    void run(lastUser.content, history, false);
+  }, [messages, run, streaming]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -179,14 +200,16 @@ export function useChat() {
     setMetrics(EMPTY_METRICS);
   }, [streaming]);
 
-  useEffect(
-    () => () => {
-      abortRef.current?.abort();
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
-    },
-    [],
-  );
+  /**
+   * 只在页面真正卸载时中断请求，而**不在组件卸载时**中断。
+   * 原因：React StrictMode 在开发环境会「挂载 → 卸载 → 再挂载」，
+   * 如果在 effect 清理里 abort，开发环境第一个请求会被自己掐断（表现为已停止）。
+   */
+  useEffect(() => {
+    const onPageHide = () => abortRef.current?.abort();
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+  }, []);
 
-  return { messages, streaming, metrics, strategy, setStrategy, send, stop, clear };
+  return { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, clear };
 }

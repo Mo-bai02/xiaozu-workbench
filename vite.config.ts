@@ -22,6 +22,20 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       open: false,
+      // 别去 watch 缓存目录：浏览器/构建工具会在里面写锁定文件，会导致 EBUSY 崩掉 dev server
+      watch: {
+        ignored: ['**/.cache/**', '**/dist/**', '**/coverage/**'],
+      },
+      proxy: {
+        '/api': {
+          target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8787',
+          changeOrigin: true,
+        },
+      },
+    },
+    // 预览生产构建时同样把 /api 代理到本地服务，方便验证「构建产物 + 真接口」
+    preview: {
+      port: 4173,
       proxy: {
         '/api': {
           target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8787',

@@ -5,14 +5,14 @@
   "type": "module",
   "description": "AI Console —— 流式对话 / 生成式 UI / 调用日志，一个可直接演示的 AI 前端工作台",
   "scripts": {
-    "dev": "concurrently -n mock,web -c magenta,cyan \"npm:mock\" \"vite\"",
-    "mock": "node server/mock.mjs",
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm:api\" \"vite\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "api": "node server/index.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "5.5.1",

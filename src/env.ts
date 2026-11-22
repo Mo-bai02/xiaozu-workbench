@@ -5,7 +5,6 @@ import { z } from 'zod';
  * 这是脚手架该做的事：把配置错误挡在第一屏。
  */
 const schema = z.object({
-  VITE_USE_MOCK: z.enum(['true', 'false']).default('true'),
   VITE_API_BASE: z.string().default('/api'),
   VITE_APP_TITLE: z.string().default('AI Console'),
 });
@@ -18,7 +17,6 @@ if (!parsed.success) {
 }
 
 export const env = {
-  useMock: parsed.data.VITE_USE_MOCK === 'true',
   apiBase: parsed.data.VITE_API_BASE.replace(/\/$/, ''),
   appTitle: parsed.data.VITE_APP_TITLE,
   isDev: import.meta.env.DEV,

@@ -13,6 +13,7 @@ import {
   TableOutlined,
 } from '@ant-design/icons';
 import { env } from '@/env';
+import { useHealth } from '@/lib/health';
 import { useUIStore } from '@/store/ui';
 
 const { Header, Sider, Content } = Layout;
@@ -34,6 +35,7 @@ export function AppShell() {
   const collapsed = useUIStore((s) => s.collapsed);
   const setCollapsed = useUIStore((s) => s.setCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const health = useHealth();
 
   const selectedKey = useMemo(() => {
     const match = NAV.find((item) => location.pathname.startsWith(item.key));
@@ -102,9 +104,22 @@ export function AppShell() {
           </Space>
 
           <Space size={8}>
-            <Tooltip title={env.useMock ? '使用内置 mock 数据，无需后端' : '已连接真实模型接口'}>
-              <Tag color={env.useMock ? 'gold' : 'green'} className="status-tag">
-                {env.useMock ? 'MOCK' : 'LIVE'}
+            <Tooltip
+              title={
+                health.mode === 'live'
+                  ? `已接入真实模型：${health.model ?? ''}`
+                  : health.mode === 'mock'
+                    ? '服务端未配置 LLM_API_KEY，当前走内置 mock'
+                    : health.mode === 'offline'
+                      ? '连不上 API 服务，请先运行 npm run dev'
+                      : '正在检测服务状态'
+              }
+            >
+              <Tag
+                color={health.mode === 'live' ? 'green' : health.mode === 'mock' ? 'gold' : 'red'}
+                className="status-tag"
+              >
+                {health.mode === 'live' ? 'LIVE' : health.mode === 'mock' ? 'MOCK' : 'OFFLINE'}
               </Tag>
             </Tooltip>
             <Tooltip title={dark ? '切换到浅色' : '切换到深色'}>

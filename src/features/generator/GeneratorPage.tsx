@@ -12,9 +12,9 @@ import {
   Typography,
 } from 'antd';
 import { CodeOutlined, ExperimentOutlined } from '@ant-design/icons';
-import { env } from '@/env';
 import { formatMs } from '@/lib/utils';
 import { SpecRenderer } from './SpecRenderer';
+import { useHealth } from '@/lib/health';
 import { generateSpec, type UISpec } from './schema';
 
 const EXAMPLES = [
@@ -29,6 +29,7 @@ export function GeneratorPage() {
   const [spec, setSpec] = useState<UISpec | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const health = useHealth();
   const demoStarted = useRef(false);
 
   const run = async () => {
@@ -110,7 +111,7 @@ export function GeneratorPage() {
                 <Tag color="blue">{spec.layout === 'form' ? '表单' : '表格'}</Tag>
                 <Tag>{spec.fields.length} 个字段</Tag>
                 <Tag color="default">耗时 {formatMs(elapsed)}</Tag>
-                <Tag color={env.useMock ? 'gold' : 'green'}>{env.useMock ? 'MOCK' : 'LIVE'}</Tag>
+                <Tag color={health.mode === 'live' ? 'green' : 'gold'}>{health.mode === 'live' ? 'LIVE' : 'MOCK'}</Tag>
               </Space>
               <Collapse
                 ghost

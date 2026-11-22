@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 import { env } from '@/env';
 
 /**
@@ -136,16 +137,8 @@ export function mockSpec(prompt: string): UISpec {
   return RULES.find((rule) => rule.test.test(prompt))?.spec ?? FALLBACK;
 }
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-/** 真实环境：模型返回 JSON，前端校验；mock 环境：本地规则模拟。 */
+/** 请求服务端生成 Schema：真模型或 mock 由服务端决定，前端只负责校验。 */
 export async function generateSpec(prompt: string, signal?: AbortSignal): Promise<UISpec> {
-  if (env.useMock) {
-    await delay(600);
-    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    return mockSpec(prompt);
-  }
-
   const response = await fetch(`${env.apiBase}/generate/ui`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
