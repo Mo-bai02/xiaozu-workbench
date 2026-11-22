@@ -107,6 +107,10 @@ export async function handleAppApi(req, res, url) {
     }
 
     if (path === '/api/auth/register' && req.method === 'POST') {
+      // 公网部署时把 ALLOW_REGISTER 设成 0：账号建好后就不再接受新注册
+      if (process.env.ALLOW_REGISTER === '0') {
+        return bad(res, '本站已关闭注册，请联系管理员开通账号', 403), true;
+      }
       const body = await readBody(req);
       const username = String(body.username ?? '').trim();
       const password = String(body.password ?? '');
