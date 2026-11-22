@@ -13,6 +13,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleAppApi } from './app-api.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -566,6 +567,44 @@ async function handleGenerate(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+const DIST_DIR = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist');
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json; charset=utf-8',
+};
+
+/** 返回 true 表示已经处理完（含 404），调用方直接 return */
+async function serveStatic(res, url) {
+  if (!fs.existsSync(path.join(DIST_DIR, 'index.html'))) return false;
+  if (url.pathname.startsWith('/api/')) return false;
+
+  const safePath = path.normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
+  let filePath = path.join(DIST_DIR, safePath);
+  if (!filePath.startsWith(DIST_DIR)) return false;
+
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    filePath = path.join(DIST_DIR, 'index.html');
+  }
+
+  const ext = path.extname(filePath);
+  const isHashed = filePath.includes(`${path.sep}assets${path.sep}`);
+  res.writeHead(200, {
+    'Content-Type': MIME[ext] ?? 'application/octet-stream',
+    'Cache-Control': isHashed ? 'public, max-age=31536000, immutable' : 'no-cache',
+  });
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
 
@@ -576,6 +615,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    // 业务接口（登录 / 小组 / 任务 / 账目 / 专注 / 提醒）
+    if (await handleAppApi(req, res, url)) return;
+
     if (url.pathname === '/api/health') {
       const models = availableModels();
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
@@ -674,6 +716,9 @@ const server = http.createServer(async (req, res) => {
       await handleGenerate(req, res);
       return;
     }
+
+    // 生产环境（Docker）：dist 存在时，同一个进程顺带把前端发出去，SPA 回退到 index.html
+    if (req.method === 'GET' && (await serveStatic(res, url))) return;
 
     res.writeHead(404, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'not found' }));

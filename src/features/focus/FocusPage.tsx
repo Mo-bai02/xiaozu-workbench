@@ -23,7 +23,7 @@ import {
 } from '@ant-design/icons';
 import { Bars } from '@/components/charts';
 import { useWorkspaceStore } from '@/features/workspace/store';
-import { focusTrend, minutesOnDay, useFocusStore } from './store';
+import { focusTrend, minutesOnCstDay, useFocusStore } from './store';
 
 type Mode = 'focus' | 'break';
 
@@ -79,7 +79,7 @@ function createTicker(onTick: () => void): () => void {
 }
 
 export function FocusPage() {
-  const { sessions, add, focusMinutes, breakMinutes, setDurations } = useFocusStore();
+  const { sessions, load: loadSessions, add, focusMinutes, breakMinutes, setDurations } = useFocusStore();
   const tasks = useWorkspaceStore((s) => s.tasks);
 
   const [mode, setMode] = useState<Mode>('focus');
@@ -96,6 +96,10 @@ export function FocusPage() {
   const originalTitle = useRef(document.title);
 
   const total = (mode === 'focus' ? focusMinutes : breakMinutes) * 60;
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
 
   const notify = useCallback(
     (title: string, body: string) => {
@@ -204,7 +208,7 @@ export function FocusPage() {
     if (!running && mode === 'focus') setRemaining(value * 60);
   };
 
-  const today = minutesOnDay(sessions, new Date());
+  const today = minutesOnCstDay(sessions);
   const trend = useMemo(() => focusTrend(sessions), [sessions]);
   const weekTotal = trend.reduce((sum, item) => sum + item.value, 0);
   const openTasks = tasks.filter((task) => task.status !== 'done');

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Col, Popconfirm, Row, Space, Statistic, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, DownloadOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { clearAll, downloadBackup, formatBytes, importBackup, storageUsage } from '@/lib/backup';
@@ -6,18 +6,27 @@ import { useNotesStore } from '@/features/notes/store';
 import { useExpenseStore } from '@/features/expenses/store';
 import { useFocusStore } from '@/features/focus/store';
 import { useWorkspaceStore } from '@/features/workspace/store';
-import { useSessionStore } from '@/store/sessions';
+import { useAuthStore } from '@/store/auth';
+import { useGroupStore } from '@/store/group';
 
 export function SettingsPage() {
   const [usage, setUsage] = useState(() => storageUsage());
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const notesCount = useNotesStore((s) => s.notes.length);
+  const notes = useNotesStore((s) => s.notes);
+  const loadNotes = useNotesStore((s) => s.load);
+
+  useEffect(() => {
+    void loadNotes();
+  }, [loadNotes]);
+
+  const notesCount = notes.length;
   const expensesCount = useExpenseStore((s) => s.expenses.length);
   const sessionsCount = useFocusStore((s) => s.sessions.length);
   const tasksCount = useWorkspaceStore((s) => s.tasks.length);
-  const chats = useSessionStore((s) => s.sessions.length);
+  const user = useAuthStore((s) => s.user);
+  const groups = useGroupStore((s) => s.groups);
 
   const onImport = async (file: File) => {
     setImporting(true);
@@ -39,13 +48,24 @@ export function SettingsPage() {
           设置与数据
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          所有数据存在浏览器本地。换设备或清缓存会丢，建议定期导出。
+          账号里的数据存在服务端，唯一要注意的是登录状态保存在本机。
         </Typography.Paragraph>
       </div>
 
       <Row gutter={[12, 12]}>
         <Col xs={24} lg={14}>
-          <Card size="small" className="panel" title="数据备份">
+          <Card size="small" className="panel" title="账号信息">
+            <Space direction="vertical" size={4} style={{ fontSize: 13 }}>
+              <span>
+                用户名 <b>@{user?.username}</b> · 昵称 <b>{user?.displayName}</b>
+              </span>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                任务、笔记、账目都存在服务端数据库，换设备登录就能看到。
+              </Typography.Text>
+            </Space>
+          </Card>
+
+          <Card size="small" className="panel" title="本机配置导出" style={{ marginTop: 12 }}>
             <Space wrap>
               <Button
                 type="primary"
@@ -77,8 +97,8 @@ export function SettingsPage() {
               style={{ marginTop: 12 }}
               type="info"
               showIcon
-              message="导入会覆盖同名数据"
-              description="导入完成后页面会自动刷新。"
+              message="只包含本机配置"
+              description="主题、模型选择、专注时长这类偏好。业务数据在服务端，不走这个文件。"
             />
           </Card>
 
@@ -97,10 +117,10 @@ export function SettingsPage() {
                 <Statistic title="专注记录" value={sessionsCount} suffix="次" />
               </Col>
               <Col span={8} style={{ marginTop: 12 }}>
-                <Statistic title="会话" value={chats} suffix="个" />
+                <Statistic title="小组" value={groups.length} suffix="个" />
               </Col>
               <Col span={8} style={{ marginTop: 12 }}>
-                <Statistic title="占用" value={formatBytes(usage.bytes)} />
+                <Statistic title="本机占用" value={formatBytes(usage.bytes)} />
               </Col>
             </Row>
             <Button
@@ -118,7 +138,7 @@ export function SettingsPage() {
         <Col xs={24} lg={10}>
           <Card size="small" className="panel" title="危险操作">
             <Typography.Paragraph type="secondary" style={{ fontSize: 12.5 }}>
-              清空会删除任务、成员、笔记、账目、专注记录、会话和主题设置，不可恢复。
+              只清本机缓存：登录状态、主题、模型偏好、笔记分享映射。服务端数据不受影响。
             </Typography.Paragraph>
             <Popconfirm
               title="确定清空全部本地数据？"
@@ -128,11 +148,11 @@ export function SettingsPage() {
               cancelText="取消"
               onConfirm={() => {
                 clearAll();
-                window.location.reload();
+                window.location.href = '/login';
               }}
             >
               <Button danger icon={<DeleteOutlined />}>
-                清空全部数据
+                退出并清空本机缓存
               </Button>
             </Popconfirm>
           </Card>

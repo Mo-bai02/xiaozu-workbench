@@ -1,35 +1,6 @@
-export type TaskStatus = 'todo' | 'doing' | 'done';
-export type Priority = 'low' | 'mid' | 'high';
+import type { Priority, TaskStatus } from './store';
 
-export interface Member {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  status: 'active' | 'away';
-  joinedAt: number;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  desc: string;
-  status: TaskStatus;
-  priority: Priority;
-  assigneeId: string | null;
-  tags: string[];
-  createdAt: number;
-  dueAt: number | null;
-  completedAt: number | null;
-}
-
-export interface Activity {
-  id: string;
-  time: number;
-  actor: string;
-  action: string;
-  target: string;
-}
+export type { Activity, Member, Priority, Task, TaskStatus } from './store';
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   todo: '待办',

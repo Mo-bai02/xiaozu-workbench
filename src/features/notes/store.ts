@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { uid } from '@/lib/utils';
+import { api } from '@/lib/http';
 
 export interface Note {
   id: string;
@@ -7,131 +7,120 @@ export interface Note {
   content: string;
   tags: string[];
   pinned: boolean;
-  /** 已分享的 id；为空表示未分享 */
-  shareId?: string;
   createdAt: number;
   updatedAt: number;
 }
 
 interface NoteState {
   notes: Note[];
-  create: () => string;
-  update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'shareId'>>) => void;
-  togglePin: (id: string) => void;
-  remove: (id: string) => void;
+  /** 分享 id 只存在本地：分享是"这一份快照"，不属于笔记本身 */
+  shareIds: Record<string, string>;
+  loading: boolean;
+  loaded: boolean;
+  load: () => Promise<void>;
+  create: () => Promise<string>;
+  update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'tags'>>) => Promise<void>;
+  togglePin: (id: string) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  setShareId: (id: string, shareId: string | undefined) => void;
 }
 
-const KEY = 'ai-console:notes';
-const DAY = 86_400_000;
+const SHARE_KEY = 'ai-console:note-shares';
 
-function seed(): Note[] {
-  const now = Date.now();
-  return [
-    {
-      id: 'n1',
-      title: '第一次小组会 · 分工与时间点',
-      content: [
-        '## 结论',
-        '- 前端：陈鹏宇，负责工作台页面与 AI 模块',
-        '- 后端：周野，负责账号与任务接口',
-        '- 设计：苏芮，周五前出首页高保真',
-        '',
-        '## 待确认',
-        '1. 是否需要移动端？先做响应式，暂不单独出 App',
-        '2. 经费从班费出，需在账本里记一笔',
-      ].join('\n'),
-      tags: ['会议', '分工'],
-      pinned: true,
-      createdAt: now - 2 * DAY,
-      updatedAt: now - 2 * DAY,
-    },
-    {
-      id: 'n2',
-      title: '答辩可能会问的问题',
-      content: [
-        '- 为什么不用 ECharts？',
-        '- 拖拽怎么兼容移动端？',
-        '- 数据存 localStorage 有什么风险？',
-      ].join('\n'),
-      tags: ['答辩'],
-      pinned: false,
-      createdAt: now - DAY,
-      updatedAt: now - DAY,
-    },
-    {
-      id: 'n3',
-      title: '班费支出备忘',
-      content: '打印海报 30，场地布置 45，矿泉水 18。已记进账本，月底统一结算。',
-      tags: ['经费'],
-      pinned: false,
-      createdAt: now - 3_600_000,
-      updatedAt: now - 3_600_000,
-    },
-  ];
-}
-
-function load(): Note[] {
+function readShareIds(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Note[];
-      if (Array.isArray(parsed)) return parsed;
-    }
+    const raw = localStorage.getItem(SHARE_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, string>;
   } catch {
-    /* 损坏就重新播种 */
+    /* 忽略 */
   }
-  return seed();
+  return {};
 }
 
-function persist(notes: Note[]): void {
+function writeShareIds(map: Record<string, string>): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(notes));
+    localStorage.setItem(SHARE_KEY, JSON.stringify(map));
   } catch {
     /* 忽略 */
   }
 }
 
-const boot = typeof window === 'undefined' ? seed() : load();
-
 export const useNotesStore = create<NoteState>((set, get) => ({
-  notes: boot,
+  notes: [],
+  shareIds: typeof window === 'undefined' ? {} : readShareIds(),
+  loading: false,
+  loaded: false,
 
-  create: () => {
+  load: async () => {
+    set({ loading: true });
+    try {
+      const data = await api<{ notes: Note[] }>('/notes');
+      set({ notes: data.notes, loading: false, loaded: true });
+    } catch {
+      set({ loading: false, loaded: true });
+    }
+  },
+
+  create: async () => {
+    const data = await api<{ note: Note }>('/notes', { method: 'POST' });
     const note: Note = {
-      id: uid('n'),
-      title: '未命名笔记',
-      content: '',
+      ...data.note,
       tags: [],
-      pinned: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      pinned: Boolean(data.note.pinned),
     };
-    const notes = [note, ...get().notes];
-    persist(notes);
-    set({ notes });
+    set({ notes: [note, ...get().notes] });
     return note.id;
   },
 
-  update: (id, patch) => {
-    const notes = get().notes.map((note) =>
-      note.id === id ? { ...note, ...patch, updatedAt: Date.now() } : note,
-    );
-    persist(notes);
-    set({ notes });
+  update: async (id, patch) => {
+    // 先本地改，输入时不会有延迟感；服务端失败就重新拉
+    const snapshot = get().notes;
+    set({
+      notes: snapshot.map((note) =>
+        note.id === id ? { ...note, ...patch, updatedAt: Date.now() } : note,
+      ),
+    });
+    try {
+      await api(`/notes/${id}`, { method: 'PATCH', body: { patch } });
+    } catch {
+      set({ notes: snapshot });
+    }
   },
 
-  togglePin: (id) => {
-    const notes = get().notes.map((note) =>
-      note.id === id ? { ...note, pinned: !note.pinned, updatedAt: Date.now() } : note,
-    );
-    persist(notes);
-    set({ notes });
+  togglePin: async (id) => {
+    const target = get().notes.find((note) => note.id === id);
+    if (!target) return;
+    const next = !target.pinned;
+    set({
+      notes: get().notes.map((note) => (note.id === id ? { ...note, pinned: next } : note)),
+    });
+    try {
+      await api(`/notes/${id}`, { method: 'PATCH', body: { patch: { pinned: next } } });
+    } catch {
+      set({ notes: get().notes.map((note) => (note.id === id ? { ...note, pinned: !next } : note)) });
+    }
   },
 
-  remove: (id) => {
-    const notes = get().notes.filter((note) => note.id !== id);
-    persist(notes);
-    set({ notes });
+  remove: async (id) => {
+    const snapshot = get().notes;
+    set({ notes: snapshot.filter((note) => note.id !== id) });
+    try {
+      await api(`/notes/${id}`, { method: 'DELETE' });
+      const shareIds = { ...get().shareIds };
+      delete shareIds[id];
+      writeShareIds(shareIds);
+      set({ shareIds });
+    } catch {
+      set({ notes: snapshot });
+    }
+  },
+
+  setShareId: (id, shareId) => {
+    const shareIds = { ...get().shareIds };
+    if (shareId) shareIds[id] = shareId;
+    else delete shareIds[id];
+    writeShareIds(shareIds);
+    set({ shareIds });
   },
 }));
 

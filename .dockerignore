@@ -7,3 +7,6 @@ coverage
 *.log
 README.md
 docs/images
+
+data/
+*.db

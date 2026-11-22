@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Button,
@@ -23,6 +23,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, PlusOutlined, SwapOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Donut } from '@/components/charts';
+import { useAuthStore } from '@/store/auth';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useExpenseStore } from './store';
 import { categoryTotals, memberSummary, settle, yuan, type Expense } from './settle';
@@ -40,7 +41,8 @@ interface FormValues {
 }
 
 export function ExpensesPage() {
-  const { expenses, add, remove } = useExpenseStore();
+  const { expenses, load: loadExpenses, add, remove } = useExpenseStore();
+  const me = useAuthStore((s) => s.user);
   const members = useWorkspaceStore((s) => s.members);
   const [month, setMonth] = useState(() => dayjs());
   const [category, setCategory] = useState<string>(ALL);
@@ -48,15 +50,16 @@ export function ExpensesPage() {
   const [form] = Form.useForm<FormValues>();
 
   const nameOf = useMemo(
-    () => Object.fromEntries(members.map((member) => [member.id, member.name])),
+    () => Object.fromEntries(members.map((member) => [member.id, member.displayName])),
     [members],
   );
 
-  const inMonth = useMemo(
-    () =>
-      expenses.filter((expense) => dayjs(expense.date).isSame(month, 'month')),
-    [expenses, month],
-  );
+  // 账目由服务端按北京时间的自然月返回，这里只负责切换月份时重新拉
+  useEffect(() => {
+    void loadExpenses(month.format('YYYY-MM'));
+  }, [loadExpenses, month]);
+
+  const inMonth = expenses;
 
   const rows = useMemo(
     () => (category === ALL ? inMonth : inMonth.filter((expense) => expense.category === category)),
@@ -64,7 +67,7 @@ export function ExpensesPage() {
   );
 
   const total = inMonth.reduce((sum, expense) => sum + expense.amount, 0);
-  const mine = useMemo(() => memberSummary(inMonth, 'm1'), [inMonth]);
+  const mine = useMemo(() => memberSummary(inMonth, me?.id ?? ''), [inMonth, me?.id]);
   const transfers = useMemo(
     () => settle(inMonth, members.map((member) => member.id)),
     [inMonth, members],
@@ -273,13 +276,15 @@ export function ExpensesPage() {
             <Input maxLength={40} placeholder="例如：打印答辩海报" />
           </Form.Item>
           <Form.Item name="payerId" label="谁垫的钱" rules={[{ required: true }]}>
-            <Select options={members.map((member) => ({ value: member.id, label: member.name }))} />
+            <Select
+              options={members.map((member) => ({ value: member.id, label: member.displayName }))}
+            />
           </Form.Item>
           <Form.Item name="sharedBy" label="谁一起分摊" rules={[{ required: true, message: '至少选一个人' }]}>
             <Select
               mode="multiple"
               allowClear
-              options={members.map((member) => ({ value: member.id, label: member.name }))}
+              options={members.map((member) => ({ value: member.id, label: member.displayName }))}
             />
           </Form.Item>
           <Form.Item name="date" label="日期">

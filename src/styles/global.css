@@ -1916,3 +1916,180 @@ body {
     display: none;
   }
 }
+
+
+/* ---- 登录 / 选择小组 ---- */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 32px 16px;
+  background: radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 60%);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  background: linear-gradient(140deg, #3b6ef6, #6b5cff);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  box-shadow: var(--shadow);
+}
+
+.groups-page {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-top: 56px;
+  max-width: 1080px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.groups-head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.group-card {
+  height: 100%;
+}
+
+.group-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 16px;
+  flex: none;
+}
+
+.group-name {
+  font-weight: 600;
+  font-size: 14.5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.group-code {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-code:hover {
+  color: var(--accent);
+}
+
+/* ---- 顶栏：小组切换 / 提醒 / 用户 ---- */
+
+.group-select .ant-select-selector {
+  font-size: 12.5px !important;
+}
+
+.group-select-foot {
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.user-avatar {
+  cursor: pointer;
+  background: linear-gradient(140deg, #3b6ef6, #6b5cff) !important;
+  font-size: 12px !important;
+}
+
+.reminder-pop {
+  width: 300px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.reminder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reminder-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 2px;
+  border-bottom: 1px dashed var(--border);
+  cursor: pointer;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.reminder-list li:hover {
+  color: var(--accent);
+}
+
+.reminder-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  transform: translateY(-2px);
+}
+
+.reminder-dot.is-overdue {
+  background: #e5484d;
+}
+
+.reminder-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.reminder-meta {
+  width: 100%;
+  color: var(--muted);
+  font-size: 11px;
+  padding-left: 14px;
+}

@@ -1,30 +1,54 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Button, Drawer, Grid, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import {
+  Avatar,
+  Badge,
+  Button,
+  Drawer,
+  Dropdown,
+  Empty,
+  Grid,
+  Layout,
+  Menu,
+  Popover,
+  Select,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
+import {
+  BellOutlined,
   BulbFilled,
   BulbOutlined,
+  ClockCircleOutlined,
   DashboardOutlined,
   ExperimentOutlined,
   FileTextOutlined,
-  WalletOutlined,
-  ClockCircleOutlined,
   GithubOutlined,
+  LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
-  SearchOutlined,
   MessageOutlined,
   ProjectOutlined,
+  SearchOutlined,
   SettingOutlined,
+  SwapOutlined,
   TableOutlined,
   TeamOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
-import { env } from '@/env';
 import { CommandPalette, SHORTCUT_LABEL } from '@/components/CommandPalette';
 import { FloatingBall } from '@/components/FloatingBall';
+import { api } from '@/lib/http';
+import { formatCst } from '@/lib/time';
 import { useHealth } from '@/lib/health';
 import { useModels, type ModelOption } from '@/lib/models';
+import { useExpenseStore } from '@/features/expenses/store';
+import { useWorkspaceStore } from '@/features/workspace/store';
+import { useAuthStore } from '@/store/auth';
+import { useGroupStore } from '@/store/group';
 import { useUIStore } from '@/store/ui';
 
 const { Header, Sider, Content } = Layout;
@@ -48,6 +72,17 @@ const MENU_ITEMS = [
   { type: 'group' as const, label: '其他', children: NAV.slice(9) },
 ];
 
+interface ReminderItem {
+  id: string;
+  title: string;
+  dueAt: number;
+  priority: 'low' | 'mid' | 'high';
+  status: string;
+  groupId: string;
+  groupName: string;
+  overdue: boolean;
+}
+
 export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -66,10 +101,65 @@ export function AppShell() {
   const setPaletteOpen = useUIStore((s) => s.setPaletteOpen);
   const activeModel = models.find((m) => m.id === modelId) ?? models[0];
 
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const groups = useGroupStore((s) => s.groups);
+  const activeId = useGroupStore((s) => s.activeId);
+  const loaded = useGroupStore((s) => s.loaded);
+  const setActive = useGroupStore((s) => s.setActive);
+  const activeGroup = groups.find((group) => group.id === activeId) ?? null;
+
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+
+  const healthMeta = useMemo(() => {
+    switch (health.mode) {
+      case 'live':
+        return { label: 'LIVE', color: 'green', tooltip: '已接入真实模型' };
+      case 'mock':
+        return { label: 'MOCK', color: 'orange', tooltip: '服务端没有配置 Key，当前走内置模拟' };
+      case 'offline':
+        return { label: 'OFFLINE', color: 'red', tooltip: '连不上 API 服务，先运行 npm run dev' };
+      default:
+        return { label: '…', color: 'default', tooltip: '正在检测服务状态' };
+    }
+  }, [health.mode]);
+
   const selectedKey = useMemo(() => {
     const match = NAV.find((item) => location.pathname.startsWith(item.key));
     return match?.key ?? '/overview';
   }, [location.pathname]);
+
+  // 没有小组时先去选小组，不然所有页面都是空的
+  useEffect(() => {
+    if (loaded && groups.length === 0) navigate('/groups', { replace: true });
+  }, [loaded, groups.length, navigate]);
+
+  // 小组切换 → 重新拉任务/成员/账目
+  useEffect(() => {
+    if (!activeId) return;
+    void useWorkspaceStore.getState().load(activeId);
+    void useExpenseStore.getState().load(useExpenseStore.getState().month);
+  }, [activeId]);
+
+  // 任务提醒：进来拉一次，之后每分钟刷新
+  useEffect(() => {
+    if (!activeId) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const data = await api<{ reminders: ReminderItem[] }>('/reminders');
+        if (alive) setReminders(data.reminders);
+      } catch {
+        /* 掉线时静默 */
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [activeId]);
 
   const menu = (
     <Menu
@@ -80,17 +170,39 @@ export function AppShell() {
         navigate(key);
         setDrawerOpen(false);
       }}
-      style={{ borderInlineEnd: 'none', background: 'transparent' }}
     />
   );
 
   const brand = (
     <div className="brand">
-      <span className="brand-mark">AI</span>
-      <div className="brand-text">
-        <Typography.Text strong>{env.appTitle}</Typography.Text>
-        <span className="brand-sub">流式 · 生成式 · 可观测</span>
-      </div>
+      <span className="brand-logo">AI</span>
+      {!collapsed && (
+        <div className="brand-text">
+          <span className="brand-name">AI Console</span>
+          <span className="brand-sub">{activeGroup?.name ?? '小组工作台'}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const reminderContent = (
+    <div className="reminder-pop">
+      {reminders.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="今天没有到期任务" />
+      ) : (
+        <ul className="reminder-list">
+          {reminders.map((item) => (
+            <li key={item.id} onClick={() => navigate('/board')}>
+              <span className={item.overdue ? 'reminder-dot is-overdue' : 'reminder-dot'} />
+              <span className="reminder-title">{item.title}</span>
+              <span className="reminder-meta">
+                {item.groupName} · {formatCst(item.dueAt)}
+                {item.overdue ? ' 已逾期' : ' 今天'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 
@@ -130,9 +242,42 @@ export function AppShell() {
             <Typography.Text strong className="header-title">
               {NAV.find((item) => item.key === selectedKey)?.label}
             </Typography.Text>
+
+            <Select
+              size="small"
+              aria-label="切换小组"
+              className="group-select"
+              value={activeId ?? undefined}
+              onChange={(id) => setActive(id)}
+              popupMatchSelectWidth={false}
+              style={{ minWidth: 120, maxWidth: 170 }}
+              options={groups.map((group) => ({ value: group.id, label: group.name }))}
+              dropdownRender={(menuNode) => (
+                <>
+                  {menuNode}
+                  <div className="group-select-foot">
+                    <Button size="small" type="link" onClick={() => navigate('/groups')}>
+                      管理小组
+                    </Button>
+                  </div>
+                </>
+              )}
+            />
           </Space>
 
           <Space size={8}>
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              title="今天到期与逾期"
+              content={reminderContent}
+              arrow={false}
+            >
+              <Badge count={reminders.length} size="small" offset={[-2, 4]}>
+                <Button size="small" type="text" aria-label="任务提醒" icon={<BellOutlined />} />
+              </Badge>
+            </Popover>
+
             <Tooltip title={SHORTCUT_LABEL + ' 打开命令面板'}>
               <Button
                 size="small"
@@ -143,6 +288,7 @@ export function AppShell() {
                 <span className="palette-kbd">{SHORTCUT_LABEL}</span>
               </Button>
             </Tooltip>
+
             <Select
               size="small"
               aria-label="选择模型"
@@ -164,49 +310,65 @@ export function AppShell() {
                 );
               }}
               style={{ width: isMobile ? 118 : 174 }}
-              dropdownRender={(menu) => (
+              dropdownRender={(menuNode) => (
                 <>
-                  {menu}
+                  {menuNode}
                   {!models.some((m) => m.free) && (
                     <div className="model-hint">配置任一 Key 后，这里会出现对应模型</div>
                   )}
                 </>
               )}
             />
-            <Tooltip
-              title={
-                health.mode === 'live'
-                  ? '已连接模型服务'
-                  : health.mode === 'mock'
-                    ? '服务端未配置 API Key，当前走内置 mock'
-                    : health.mode === 'offline'
-                      ? '连不上 API 服务，请先运行 npm run dev'
-                      : '正在检测服务状态'
-              }
-            >
-              <Tag
-                color={health.mode === 'live' ? 'green' : health.mode === 'mock' ? 'gold' : 'red'}
-                className="status-tag"
-              >
-                {health.mode === 'live' ? 'LIVE' : health.mode === 'mock' ? 'MOCK' : 'OFFLINE'}
+
+            <Tooltip title={healthMeta.tooltip}>
+              <Tag className="health-tag" color={healthMeta.color}>
+                {healthMeta.label}
               </Tag>
             </Tooltip>
-            <Tooltip title={dark ? '切换到浅色' : '切换到深色'}>
+
+            <Tooltip title={dark ? '切到浅色' : '切到深色'}>
               <Button
+                size="small"
                 type="text"
                 aria-label="切换主题"
                 icon={dark ? <BulbFilled /> : <BulbOutlined />}
                 onClick={toggleDark}
               />
             </Tooltip>
-            <Tooltip title="源码">
+
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  {
+                    key: 'name',
+                    label: `${user?.displayName ?? '未登录'}（${user?.username ?? '-'}）`,
+                    disabled: true,
+                  },
+                  { type: 'divider' },
+                  { key: 'groups', icon: <SwapOutlined />, label: '切换 / 加入小组' },
+                  { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
+                ],
+                onClick: ({ key }) => {
+                  if (key === 'groups') navigate('/groups');
+                  if (key === 'logout') {
+                    void logout().then(() => navigate('/login', { replace: true }));
+                  }
+                },
+              }}
+            >
+              <Avatar size={26} className="user-avatar">
+                {user?.displayName?.slice(0, 1) ?? '?'}
+              </Avatar>
+            </Dropdown>
+
+            <Tooltip title="GitHub">
               <Button
+                size="small"
                 type="text"
                 aria-label="GitHub"
                 icon={<GithubOutlined />}
-                href="https://github.com/mobai02/ai-console"
-                target="_blank"
-                rel="noreferrer"
+                onClick={() => window.open('https://github.com/mobai02/ai-console', '_blank', 'noopener')}
               />
             </Tooltip>
           </Space>
@@ -223,10 +385,10 @@ export function AppShell() {
       <Drawer
         open={drawerOpen}
         placement="left"
-        width={240}
+        width={248}
         onClose={() => setDrawerOpen(false)}
         title={brand}
-        styles={{ body: { padding: 8 } }}
+        styles={{ body: { padding: 0 } }}
       >
         {menu}
       </Drawer>

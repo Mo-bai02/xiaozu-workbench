@@ -4,10 +4,18 @@
 
 起因很具体：小组做项目时，任务在群里喊、会议记录在备忘录、班费在 Excel、专注靠自觉，四样东西四个地方。干脆合成一个。
 
-React 18 + TypeScript + Vite 5 + antd 5，配一个零依赖的 Node 服务（可接真实模型，也可无 Key 跑 mock）。
+现在是**带账号和多小组的服务端应用**：注册登录 → 创建或加入小组 → 数据存在 SQLite 里，换设备登进去还在。
+
+前端 React 18 + TypeScript + Vite 5 + antd 5；服务端零依赖 Node，数据库用 Node 24 内置的 `node:sqlite`。
 
 <p align="center">
   <img src="docs/images/overview.png" alt="项目概览" width="880" />
+</p>
+
+<p align="center">
+  <img src="docs/images/login.png" alt="登录" width="290" />
+  <img src="docs/images/groups.png" alt="选择小组" width="290" />
+  <img src="docs/images/members.png" alt="成员权限" width="290" />
 </p>
 
 <p align="center">
@@ -29,6 +37,9 @@ React 18 + TypeScript + Vite 5 + antd 5，配一个零依赖的 Node 服务（�
 | **笔记** | 编辑器、自动保存、Markdown 渲染 | 受控 textarea + 防抖落盘 + 复用渲染器 |
 | **经费账本** | 金额精度、统计、结算算法 | 以「分」存整数、贪心债务简化、分类占比 |
 | **专注计时** | 计时器、后台节流、浏览器 API | 结束时间戳差值、Worker 计时、Web Audio、Notification |
+| **登录 / 小组** | 认证、多租户、邀请机制 | scrypt 加盐密码、Bearer 会话、邀请码加入 |
+| **权限模型** | 不同角色看到不同操作 | 创建者 / 管理员 / 成员三级，服务端二次校验 |
+| **任务提醒** | 时间边界与通知 | 北京时间自然日切分、逾期标记、每分钟轮询 |
 | **只读分享页** | 独立公开页面、数据最小暴露 | 独立路由（不带工作台外壳）+ 服务端内存存储 |
 | **设置与数据** | 数据可迁移、危险操作防护 | 全量 JSON 导出/导入、存储占用统计、二次确认 |
 | **智能助手** | 流式渲染、状态机、性能 | SSE、rAF 批处理、Markdown 增量渲染 |
@@ -46,12 +57,18 @@ git clone <your-repo> && cd ai-console
 npm install
 
 cp .env.example .env      # Windows: copy .env.example .env
-# 填一个模型 Key（DeepSeek / 百炼 / 硅基流动 / 智谱 / 火山，任意一个即可）
+# 想用真实模型就填一个 Key（DeepSeek / 百炼 / 硅基流动 / 智谱 / 火山），不填走 mock
 
 npm run dev
 ```
 
-打开 <http://localhost:5173>，默认进「项目概览」。
+打开 <http://localhost:5173>：
+
+1. 第一次来没有账号，点「注册」，用户名 3-20 位字母数字下划线，密码至少 6 位
+2. 注册完会让你**创建小组**或**用邀请码加入**
+3. 创建小组后你就是创建者，可以任命管理员
+
+数据库文件在 `server/data/app.db`（已在 .gitignore 里）。删掉它等于清空所有数据。
 
 | 命令 | 作用 |
 |---|---|
@@ -190,28 +207,58 @@ src/
 │  ├─ generator/               UI Schema 契约、动态渲染
 │  └─ logs/                    调用记录
 └─ styles/global.css           设计变量、深色主题、动效、断点
-server/index.mjs               零依赖 API：模型路由 / 流式转发 / 日志 / 限流
+server/
+├─ index.mjs                  HTTP 入口：模型路由 / 流式转发 / 日志 / 分享
+├─ app-api.mjs                业务接口：认证 / 小组 / 成员权限 / 任务 / 账目 / 专注 / 提醒
+└─ db.mjs                     SQLite 建表、查询、北京时间工具
 tests/                         Vitest 用例
 ```
 
 ---
 
-## 数据与边界
+## 部署
 
-- 工作台数据（任务/成员）在 **localStorage**，换浏览器看不到；「重置」在概览页没有做，清空 `ai-console:workspace` 即可。
-- 会话记录同样在 localStorage，最多 20 个会话、每个 200 条消息。
-- 调用日志在**服务端内存**，重启清空；`visitorId` 不是鉴权，只用于隔离普通用户。
-- 服务端限流：每访客每分钟 30 次，避免内网穿透后有人刷你的 Key。
+```bash
+docker build -t ai-console .
+docker run -d -p 8787:8787 -e LLM_API_KEY=sk-xxx -v "$PWD/data:/app/data" ai-console
+```
+
+同一个 Node 进程既提供 `/api/*`，也在 `dist` 存在时把前端发出去（SPA 回退到 index.html）。
+`-v` 挂 `data` 目录，容器重建不会丢库。
+
+## 账号、权限与数据
+
+| 角色 | 能做什么 |
+|---|---|
+| 创建者 owner | 任命/撤销管理员、移除任何成员、管理一切 |
+| 管理员 admin | 移除普通成员、管理任务与账目 |
+| 成员 member | 查看全部数据、增删改任务、记自己的账，不能动成员 |
+
+这些约束都在服务端强制校验（前端只是隐藏按钮）：
+
+- 创建者不能被移除，也不能改自己的角色
+- 只有创建者能任命管理员；管理员不能移除另一个管理员
+- 一个人可以同时在多个小组，任务、账目、成员按小组隔离
+- 笔记属于**个人**，不进小组，换小组也看得到
+
+数据存在 `server/data/app.db`（SQLite，WAL 模式）：
+
+- 密码用 `scrypt` 加盐，库里只有 salt + hash，没有明文
+- 登录态是 30 天的会话 token，存在 localStorage；XSS 能偷 token，所以 Markdown 渲染继续走 DOMPurify
+- 任务提醒按**北京时间**的自然日算：今天到期的和已逾期的进铃铛
+- 「今日专注」「本月支出」同样按北京时间切分 —— 把系统时区改成纽约，数字也不会错位
+
+边界：会话记录和分享出去的笔记仍在内存里，服务重启清空（落库是下一步）。模型 Key 只活在 Node 进程，不下发到浏览器。
 
 ---
 
 ## Roadmap
 
-- [ ] 接真实后端（把 workspace store 的 action 换成 REST）
-- [ ] 任务详情支持评论与附件
-- [ ] 看板支持泳道（按成员分组）
-- [ ] 虚拟列表（上千条消息时只渲染可视区）
-- [ ] Playwright E2E
+- [ ] 找回密码 / 邮箱验证（现在忘了密码只能找管理员建新号）
+- [ ] 会话与分享落库（现在是内存，重启即失）
+- [ ] 任务详情评论与 @成员
+- [ ] WebSocket 替代轮询做实时提醒
+- [ ] Playwright E2E（登录 → 建组 → 拖任务 → 结算）
 
 ## 测试
 

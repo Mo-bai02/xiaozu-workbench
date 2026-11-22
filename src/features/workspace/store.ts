@@ -1,249 +1,207 @@
 import { create } from 'zustand';
-import { uid } from '@/lib/utils';
-import type { Activity, Member, Priority, Task, TaskStatus } from './types';
+import { api } from '@/lib/http';
+import { cstDayKey } from '@/lib/time';
+import type { Role } from '@/store/group';
+
+export type TaskStatus = 'todo' | 'doing' | 'done';
+export type Priority = 'low' | 'mid' | 'high';
+
+export interface Member {
+  id: string;
+  username: string;
+  displayName: string;
+  role: Role;
+  joinedAt: number;
+  openTasks: number;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: Priority;
+  assigneeId: string | null;
+  tags: string[];
+  createdAt: number;
+  dueAt: number | null;
+  completedAt: number | null;
+}
+
+export interface Activity {
+  id: string;
+  who: string;
+  action: string;
+  target: string;
+  at: number;
+}
+
+export interface TaskInput {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: Priority;
+  assigneeId?: string | null;
+  dueAt?: number | null;
+  tags?: string[];
+}
 
 interface WorkspaceState {
+  groupId: string | null;
   members: Member[];
   tasks: Task[];
   activities: Activity[];
-  addTask: (input: Partial<Task> & { title: string }) => string;
-  updateTask: (id: string, patch: Partial<Task>) => void;
-  moveTask: (id: string, status: TaskStatus, beforeId?: string) => void;
-  removeTask: (id: string) => void;
-  addMember: (input: Pick<Member, 'name' | 'role' | 'email'>) => void;
-  updateMember: (id: string, patch: Partial<Member>) => void;
-  removeMembers: (ids: string[]) => void;
-  reset: () => void;
+  loading: boolean;
+  error: string | null;
+  load: (groupId: string) => Promise<void>;
+  refresh: () => Promise<void>;
+  addTask: (input: TaskInput) => Promise<void>;
+  updateTask: (id: string, patch: Partial<TaskInput>) => Promise<void>;
+  moveTask: (id: string, status: TaskStatus) => Promise<void>;
+  removeTask: (id: string) => Promise<void>;
+  removeMembers: (ids: string[]) => Promise<void>;
+  setMemberRole: (id: string, role: 'admin' | 'member') => Promise<void>;
+  refreshMembers: () => Promise<void>;
 }
 
-const KEY = 'ai-console:workspace';
-const DAY = 86_400_000;
-
-function daysAgo(n: number): number {
-  return Date.now() - n * DAY;
-}
-
-function seed(): { members: Member[]; tasks: Task[]; activities: Activity[] } {
-  const members: Member[] = [
-    { id: 'm1', name: '陈鹏宇', role: '前端开发', email: 'mo_bai02@163.com', status: 'active', joinedAt: daysAgo(120) },
-    { id: 'm2', name: '林晓', role: '产品经理', email: 'lin@example.com', status: 'active', joinedAt: daysAgo(90) },
-    { id: 'm3', name: '周野', role: '后端开发', email: 'zhou@example.com', status: 'away', joinedAt: daysAgo(60) },
-    { id: 'm4', name: '苏芮', role: 'UI 设计', email: 'su@example.com', status: 'active', joinedAt: daysAgo(30) },
-  ];
-
-  const raw: Array<[string, TaskStatus, Priority, string, string, number | null]> = [
-    ['接入模型切换与供应商注册表', 'done', 'high', 'm1', '已支持 DeepSeek / 百炼 / 硅基流动', 1],
-    ['会话列表本地持久化', 'done', 'mid', 'm1', '刷新不丢历史，最多保留 20 个会话', 1],
-    ['命令面板', 'doing', 'high', 'm1', 'Ctrl K 唤起，支持搜索与键盘导航', 2],
-    ['任务看板拖拽交互', 'doing', 'mid', 'm1', '三列之间拖拽，落点高亮', 3],
-    ['成员批量操作', 'todo', 'low', 'm1', '多选删除、状态筛选', -2],
-    ['数据看板图表', 'todo', 'mid', 'm4', '手写 SVG，不引图表库', 4],
-    ['移动端适配走查', 'todo', 'high', 'm4', '375 / 390 / 768 三档', -1],
-    ['接口错误提示统一', 'done', 'mid', 'm3', '上游 4xx/5xx 透传原始信息', 2],
-    ['日志按访客隔离', 'done', 'high', 'm3', 'X-Visitor-Id 分组', 3],
-    ['导出对话为 Markdown', 'todo', 'low', 'm1', '含标题与时间戳', 7],
-    ['首屏体积优化', 'done', 'mid', 'm1', '路由懒加载，436KB → 272KB', 5],
-    ['无障碍：流式区域 aria-live', 'todo', 'mid', 'm4', '读屏能播报增量', 8],
-  ];
-
-  const tasks: Task[] = raw.map(([title, status, priority, assigneeId, desc, dueIn], index) => ({
-    id: `t${index + 1}`,
-    title,
-    desc,
-    status,
-    priority,
-    assigneeId,
-    tags: index % 3 === 0 ? ['前端'] : index % 3 === 1 ? ['协作'] : ['体验'],
-    createdAt: daysAgo(10 - (index % 8)),
-    dueAt: dueIn === null ? null : Date.now() + dueIn * DAY,
-    completedAt: status === 'done' ? daysAgo(index % 7) : null,
-  }));
-
-  const activities: Activity[] = [
-    { id: uid('a'), time: Date.now() - 3_600_000, actor: '陈鹏宇', action: '完成了任务', target: '日志按访客隔离' },
-    { id: uid('a'), time: Date.now() - 7_200_000, actor: '苏芮', action: '评论了任务', target: '移动端适配走查' },
-    { id: uid('a'), time: Date.now() - 18_000_000, actor: '林晓', action: '新建了任务', target: '命令面板（⌘K）' },
-    { id: uid('a'), time: daysAgo(2), actor: '周野', action: '更新了任务', target: '接口错误提示统一' },
-  ];
-
-  return { members, tasks, activities };
-}
-
-function load(): { members: Member[]; tasks: Task[]; activities: Activity[] } {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<ReturnType<typeof seed>>;
-      if (parsed.members?.length && Array.isArray(parsed.tasks)) {
-        return {
-          members: parsed.members,
-          // 老数据里这条任务写的是 Mac 的 ⌘ 符号，这里做一次迁移，避免 Windows 用户看不懂
-          tasks: parsed.tasks.map((task) =>
-            task.title === '命令面板（⌘K）'
-              ? { ...task, title: '命令面板', desc: 'Ctrl K 唤起，支持搜索与键盘导航' }
-              : task,
-          ),
-          activities: parsed.activities ?? [],
-        };
-      }
+/** 从任务里推「最近动态」，省得再造一张表 */
+function deriveActivities(tasks: Task[], members: Member[]): Activity[] {
+  const nameOf = new Map(members.map((m) => [m.id, m.displayName]));
+  const events: Activity[] = [];
+  for (const task of tasks) {
+    const who = task.assigneeId ? (nameOf.get(task.assigneeId) ?? '有人') : '有人';
+    if (task.status === 'done' && task.completedAt) {
+      events.push({ id: `c-${task.id}`, who, action: '完成了任务', target: task.title, at: task.completedAt });
     }
-  } catch {
-    /* 数据损坏就重新播种，别白屏 */
+    events.push({ id: `n-${task.id}`, who, action: '在跟任务', target: task.title, at: task.createdAt });
   }
-  return seed();
+  return events.sort((a, b) => b.at - a.at).slice(0, 6);
 }
 
-function persist(state: Pick<WorkspaceState, 'members' | 'tasks' | 'activities'>): void {
-  try {
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({ members: state.members, tasks: state.tasks, activities: state.activities }),
-    );
-  } catch {
-    /* 空间不足时忽略 */
-  }
-}
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  groupId: null,
+  members: [],
+  tasks: [],
+  activities: [],
+  loading: false,
+  error: null,
 
-const boot = typeof window === 'undefined' ? seed() : load();
-
-/**
- * 工作台数据（纯前端 mock）。
- *
- * 为什么放 localStorage 而不是先做后端：这个项目的定位是「前端作品」，
- * 数据层用一个可替换的 store 就够了；将来接真接口，只要把这几个 action 换成 fetch。
- */
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
-  const commit = (next: {
-    members?: Member[];
-    tasks?: Task[];
-    activities?: Activity[];
-  }) => {
-    set((state) => {
-      const merged = { members: next.members ?? state.members, tasks: next.tasks ?? state.tasks, activities: next.activities ?? state.activities };
-      persist(merged);
-      return merged;
-    });
-  };
-
-  const log = (action: string, target: string) => {
-    const activity: Activity = { id: uid('a'), time: Date.now(), actor: '陈鹏宇', action, target };
-    commit({ activities: [activity, ...get().activities].slice(0, 30) });
-  };
-
-  return {
-    members: boot.members,
-    tasks: boot.tasks,
-    activities: boot.activities,
-
-    addTask: (input) => {
-      const task: Task = {
-        id: uid('t'),
-        title: input.title,
-        desc: input.desc ?? '',
-        status: input.status ?? 'todo',
-        priority: input.priority ?? 'mid',
-        assigneeId: input.assigneeId ?? null,
-        tags: input.tags ?? [],
-        createdAt: Date.now(),
-        dueAt: input.dueAt ?? null,
-        completedAt: null,
-      };
-      commit({ tasks: [task, ...get().tasks] });
-      log('新建了任务', task.title);
-      return task.id;
-    },
-
-    updateTask: (id, patch) => {
-      const tasks = get().tasks.map((task) => (task.id === id ? { ...task, ...patch } : task));
-      commit({ tasks });
-      const target = tasks.find((task) => task.id === id);
-      if (target && patch.status === 'done') log('完成了任务', target.title);
-      else if (target) log('更新了任务', target.title);
-    },
-
-    moveTask: (id, status, beforeId) => {
-      const tasks = get().tasks.slice();
-      const index = tasks.findIndex((task) => task.id === id);
-      if (index === -1) return;
-      const [task] = tasks.splice(index, 1);
-      if (!task) return;
-      const moved: Task = {
-        ...task,
-        status,
-        completedAt: status === 'done' ? Date.now() : null,
-      };
-      const insertAt = beforeId ? tasks.findIndex((t) => t.id === beforeId) : -1;
-      const targetIndex = tasks.filter((t) => t.status === status).length;
-      if (insertAt >= 0) tasks.splice(insertAt, 0, moved);
-      else {
-        // 插到该列末尾
-        let lastOfStatus = -1;
-        tasks.forEach((t, i) => {
-          if (t.status === status) lastOfStatus = i;
-        });
-        tasks.splice(lastOfStatus >= 0 ? lastOfStatus + 1 : Math.min(targetIndex, tasks.length), 0, moved);
-      }
-      commit({ tasks });
-      if (status === 'done') log('完成了任务', moved.title);
-      else log('移动了任务', moved.title);
-    },
-
-    removeTask: (id) => {
-      const target = get().tasks.find((task) => task.id === id);
-      commit({ tasks: get().tasks.filter((task) => task.id !== id) });
-      if (target) log('删除了任务', target.title);
-    },
-
-    addMember: (input) => {
-      const member: Member = {
-        id: uid('m'),
-        name: input.name,
-        role: input.role,
-        email: input.email,
-        status: 'active',
-        joinedAt: Date.now(),
-      };
-      commit({ members: [...get().members, member] });
-      log('添加了成员', member.name);
-    },
-
-    updateMember: (id, patch) => {
-      const members = get().members.map((member) => (member.id === id ? { ...member, ...patch } : member));
-      commit({ members });
-    },
-
-    removeMembers: (ids) => {
-      const set_ = new Set(ids);
-      const removed = get().members.filter((m) => set_.has(m.id));
-      commit({
-        members: get().members.filter((m) => !set_.has(m.id)),
-        // 成员删除后，任务上的负责人置空，避免出现"幽灵人"
-        tasks: get().tasks.map((task) =>
-          task.assigneeId && set_.has(task.assigneeId) ? { ...task, assigneeId: null } : task,
-        ),
+  load: async (groupId) => {
+    set({ loading: true, error: null, groupId });
+    try {
+      const [taskData, memberData] = await Promise.all([
+        api<{ tasks: Task[] }>(`/groups/${groupId}/tasks`),
+        api<{ members: Member[] }>(`/groups/${groupId}/members`),
+      ]);
+      set({
+        tasks: taskData.tasks,
+        members: memberData.members,
+        activities: deriveActivities(taskData.tasks, memberData.members),
+        loading: false,
       });
-      if (removed.length) log('移除了成员', removed.map((m) => m.name).join('、'));
-    },
+    } catch (error) {
+      set({ loading: false, error: error instanceof Error ? error.message : '加载失败' });
+    }
+  },
 
-    reset: () => {
-      const fresh = seed();
-      commit(fresh);
-    },
-  };
-});
+  refresh: async () => {
+    const groupId = get().groupId;
+    if (groupId) await get().load(groupId);
+  },
 
-/** 供页面派生统计用：最近 7 天每天的完成数 */
+  refreshMembers: async () => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    const data = await api<{ members: Member[] }>(`/groups/${groupId}/members`);
+    set({ members: data.members, activities: deriveActivities(get().tasks, data.members) });
+  },
+
+  addTask: async (input) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    await api(`/groups/${groupId}/tasks`, { method: 'POST', body: input });
+    await get().load(groupId);
+  },
+
+  updateTask: async (id, patch) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    await api(`/tasks/${id}`, { method: 'PATCH', body: { groupId, patch } });
+    await get().load(groupId);
+  },
+
+  moveTask: async (id, status) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    // 先本地改，界面立刻响应；失败再回滚
+    const snapshot = get().tasks;
+    set({ tasks: snapshot.map((task) => (task.id === id ? { ...task, status } : task)) });
+    try {
+      await api(`/tasks/${id}`, { method: 'PATCH', body: { groupId, patch: { status } } });
+      await get().load(groupId);
+    } catch {
+      set({ tasks: snapshot });
+    }
+  },
+
+  removeTask: async (id) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    await api(`/tasks/${id}?groupId=${groupId}`, { method: 'DELETE' });
+    await get().load(groupId);
+  },
+
+  removeMembers: async (ids) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    for (const id of ids) {
+      await api(`/groups/${groupId}/members/${id}`, { method: 'DELETE' });
+    }
+    await get().load(groupId);
+  },
+
+  setMemberRole: async (id, role) => {
+    const groupId = get().groupId;
+    if (!groupId) return;
+    await api(`/groups/${groupId}/members/${id}`, { method: 'PATCH', body: { role } });
+    await get().refreshMembers();
+  },
+}));
+
+/** 近 7 天完成趋势，按北京时间的自然日切分 */
 export function completionTrend(tasks: Task[], days = 7): Array<{ label: string; value: number }> {
-  const result: Array<{ label: string; value: number }> = [];
-  const now = new Date();
+  const buckets = new Map<string, number>();
+  const now = Date.now();
+  const labels: string[] = [];
   for (let i = days - 1; i >= 0; i -= 1) {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    const start = day.getTime();
-    const end = start + DAY;
-    const value = tasks.filter(
-      (task) => task.completedAt !== null && task.completedAt >= start && task.completedAt < end,
-    ).length;
-    result.push({ label: `${day.getMonth() + 1}/${day.getDate()}`, value });
+    const key = cstDayKey(now - i * 86_400_000);
+    buckets.set(key, 0);
+    labels.push(key);
   }
-  return result;
+  for (const task of tasks) {
+    if (task.status !== 'done' || !task.completedAt) continue;
+    const key = cstDayKey(task.completedAt);
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  return labels.map((key) => ({
+    label: `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`,
+    value: buckets.get(key) ?? 0,
+  }));
+}
+
+export function taskStats(tasks: Task[], now = Date.now()) {
+  const total = tasks.length;
+  const done = tasks.filter((task) => task.status === 'done').length;
+  const doing = tasks.filter((task) => task.status === 'doing').length;
+  const overdue = tasks.filter(
+    (task) => task.status !== 'done' && task.dueAt !== null && task.dueAt < now,
+  ).length;
+  return {
+    total,
+    done,
+    doing,
+    overdue,
+    todo: total - done - doing,
+    rate: total === 0 ? 0 : Math.round((done / total) * 100),
+  };
 }

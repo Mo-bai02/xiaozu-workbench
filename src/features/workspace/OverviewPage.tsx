@@ -15,7 +15,8 @@ import { Bars, Donut } from '@/components/charts';
 import { completionTrend, useWorkspaceStore } from './store';
 import { useNotesStore } from '@/features/notes/store';
 import { useExpenseStore } from '@/features/expenses/store';
-import { minutesOnDay, useFocusStore } from '@/features/focus/store';
+import { minutesOnCstDay, useFocusStore } from '@/features/focus/store';
+import { cstMonthRange } from '@/lib/time';
 import { PRIORITY_COLOR, PRIORITY_LABEL, STATUS_LABEL } from './types';
 
 const DAY = 86_400_000;
@@ -27,6 +28,8 @@ function relativeTime(ts: number): string {
   if (diff < DAY) return `${Math.floor(diff / 3_600_000)} 小时前`;
   return `${Math.floor(diff / DAY)} 天前`;
 }
+
+const ROLE_TEXT: Record<string, string> = { owner: '创建者', admin: '管理员', member: '成员' };
 
 export function OverviewPage() {
   const navigate = useNavigate();
@@ -51,14 +54,12 @@ export function OverviewPage() {
   }, [tasks]);
 
   const trend = useMemo(() => completionTrend(tasks, 7), [tasks]);
-  const todayFocus = useMemo(() => minutesOnDay(focusSessions, new Date()), [focusSessions]);
+  const todayFocus = useMemo(() => minutesOnCstDay(focusSessions), [focusSessions]);
+  // 本月支出按北京时间的自然月切分，不受浏览器时区影响
   const monthSpend = useMemo(() => {
-    const now = new Date();
+    const { start, end } = cstMonthRange();
     return expenses
-      .filter((expense) => {
-        const d = new Date(expense.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      })
+      .filter((expense) => expense.date >= start && expense.date < end)
       .reduce((sum, expense) => sum + expense.amount, 0);
   }, [expenses]);
 
@@ -106,7 +107,7 @@ export function OverviewPage() {
             项目概览
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            示例项目，数据存在浏览器本地
+            小组共享数据，存服务端
           </Typography.Paragraph>
         </div>
         <Button type="primary" icon={<RobotOutlined />} onClick={askAi}>
@@ -158,12 +159,12 @@ export function OverviewPage() {
               {workload.map(({ member, count }) => (
                 <li key={member.id}>
                   <Avatar size={26} style={{ background: 'var(--accent)', fontSize: 12 }}>
-                    {member.name.slice(0, 1)}
+                    {member.displayName.slice(0, 1)}
                   </Avatar>
                   <div className="workload-main">
                     <div className="workload-top">
-                      <span>{member.name}</span>
-                      <span className="muted">{member.role}</span>
+                      <span>{member.displayName}</span>
+                      <span className="muted">{ROLE_TEXT[member.role] ?? '成员'}</span>
                       <b>{count} 项</b>
                     </div>
                     <div className="workload-bar">
@@ -193,9 +194,9 @@ export function OverviewPage() {
                   <CheckCircleOutlined className="activity-icon" />
                   <div>
                     <div className="activity-line">
-                      <b>{activity.actor}</b> {activity.action} <span>{activity.target}</span>
+                      <b>{activity.who}</b> {activity.action} <span>{activity.target}</span>
                     </div>
-                    <div className="activity-time">{relativeTime(activity.time)}</div>
+                    <div className="activity-time">{relativeTime(activity.at)}</div>
                   </div>
                 </li>
               ))}

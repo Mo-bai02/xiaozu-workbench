@@ -49,6 +49,8 @@ function dueTone(task: Task): 'overdue' | 'soon' | 'normal' {
   return 'normal';
 }
 
+const ROLE_TEXT: Record<string, string> = { owner: '创建者', admin: '管理员', member: '成员' };
+
 export function BoardPage() {
   const navigate = useNavigate();
   const { tasks, members, moveTask, addTask, updateTask, removeTask } = useWorkspaceStore();
@@ -60,7 +62,7 @@ export function BoardPage() {
   const [form] = Form.useForm();
 
   const memberName = useMemo(
-    () => Object.fromEntries(members.map((m) => [m.id, m.name])),
+    () => Object.fromEntries(members.map((m) => [m.id, m.displayName])),
     [members],
   );
 
@@ -69,7 +71,7 @@ export function BoardPage() {
     return tasks.filter((task) => {
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
       if (!lower) return true;
-      return task.title.toLowerCase().includes(lower) || task.desc.toLowerCase().includes(lower);
+      return task.title.toLowerCase().includes(lower) || task.description.toLowerCase().includes(lower);
     });
   }, [tasks, keyword, priorityFilter]);
 
@@ -87,7 +89,7 @@ export function BoardPage() {
     setEditing(task);
     form.setFieldsValue({
       title: task.title,
-      desc: task.desc,
+      desc: task.description,
       status: task.status,
       priority: task.priority,
       assigneeId: task.assigneeId,
@@ -99,7 +101,7 @@ export function BoardPage() {
     const values = await form.validateFields();
     const payload = {
       title: values.title.trim(),
-      desc: values.desc ?? '',
+      description: values.desc ?? '',
       status: values.status as TaskStatus,
       priority: values.priority as Priority,
       assigneeId: values.assigneeId ?? null,
@@ -231,7 +233,7 @@ export function BoardPage() {
                       </Dropdown>
                     </div>
 
-                    {task.desc && <p className="task-desc">{task.desc}</p>}
+                    {task.description && <p className="task-desc">{task.description}</p>}
 
                     <div className="task-meta">
                       <Tag color={PRIORITY_COLOR[task.priority]}>{PRIORITY_LABEL[task.priority]}</Tag>
@@ -311,7 +313,10 @@ export function BoardPage() {
             <Select
               allowClear
               placeholder="未指派"
-              options={members.map((m) => ({ value: m.id, label: `${m.name} · ${m.role}` }))}
+              options={members.map((m) => ({
+                value: m.id,
+                label: `${m.displayName} · ${ROLE_TEXT[m.role] ?? '成员'}`,
+              }))}
             />
           </Form.Item>
           <Form.Item name="dueAt" label="截止日期">

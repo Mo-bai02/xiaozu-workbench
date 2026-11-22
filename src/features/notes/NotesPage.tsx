@@ -49,7 +49,7 @@ function formatTime(ts: number): string {
 
 export function NotesPage() {
   const navigate = useNavigate();
-  const { notes, update, create, togglePin, remove } = useNotesStore();
+  const { notes, shareIds, load, update, create, togglePin, remove, setShareId } = useNotesStore();
   const [keyword, setKeyword] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -59,6 +59,10 @@ export function NotesPage() {
   const [shareUrl, setShareUrl] = useState('');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const tags = useMemo(() => {
     const map = new Map<string, number>();
@@ -88,8 +92,8 @@ export function NotesPage() {
     return () => window.clearTimeout(timer);
   }, [draft, active, update]);
 
-  const addNote = () => {
-    const id = create();
+  const addNote = async () => {
+    const id = await create();
     setActiveId(id);
     setMode('edit');
   };
@@ -112,15 +116,16 @@ export function NotesPage() {
     if (!active) return;
     setShareTarget(active);
     setShareError('');
-    if (active.shareId) {
-      setShareUrl(`${window.location.origin}/share/${active.shareId}`);
+    const existing = shareIds[active.id];
+    if (existing) {
+      setShareUrl(`${window.location.origin}/share/${existing}`);
       return;
     }
     setShareUrl('');
     setSharing(true);
     try {
       const id = await createShare({ title: active.title, content: active.content });
-      update(active.id, { shareId: id });
+      setShareId(active.id, id);
       setShareUrl(`${window.location.origin}/share/${id}`);
     } catch (error) {
       setShareError(error instanceof Error ? error.message : String(error));
@@ -130,9 +135,11 @@ export function NotesPage() {
   };
 
   const revoke = async () => {
-    if (!shareTarget?.shareId) return;
-    await revokeShare(shareTarget.shareId);
-    update(shareTarget.id, { shareId: undefined });
+    if (!shareTarget) return;
+    const existing = shareIds[shareTarget.id];
+    if (!existing) return;
+    await revokeShare(existing);
+    setShareId(shareTarget.id, undefined);
     setShareUrl('');
   };
 
@@ -248,7 +255,7 @@ export function NotesPage() {
                       onClick={() => togglePin(active.id)}
                     />
                   </Tooltip>
-                  <Tooltip title={active.shareId ? '管理分享链接' : '分享这条笔记'}>
+                  <Tooltip title={shareIds[active.id] ? '管理分享链接' : '分享这条笔记'}>
                     <Button
                       size="small"
                       type="text"

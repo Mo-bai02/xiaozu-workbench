@@ -74,8 +74,10 @@ export async function importBackup(file: File): Promise<{ keys: number }> {
 
 export function clearAll(): void {
   for (const key of KEYS) localStorage.removeItem(key);
-  // 访客 id 也清掉：相当于换一个人
+  // 登录态是本机的，清缓存必须一起清掉，否则等于没退
+  localStorage.removeItem('ai-console:token');
   localStorage.removeItem('ai-console:visitor');
+  localStorage.removeItem('ai-console:active-group');
 }
 
 export function storageUsage(): { bytes: number; entries: number } {
