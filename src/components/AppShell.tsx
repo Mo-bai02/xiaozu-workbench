@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Button, Drawer, Grid, Layout, Menu, Space, Tag, Tooltip, Typography } from 'antd';
+import { Button, Drawer, Grid, Layout, Menu, Select, Space, Tag, Tooltip, Typography } from 'antd';
 import {
   BulbFilled,
   BulbOutlined,
@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import { env } from '@/env';
 import { useHealth } from '@/lib/health';
+import { useModels } from '@/lib/models';
 import { useUIStore } from '@/store/ui';
 
 const { Header, Sider, Content } = Layout;
@@ -36,6 +37,10 @@ export function AppShell() {
   const setCollapsed = useUIStore((s) => s.setCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const health = useHealth();
+  const models = useModels();
+  const modelId = useUIStore((s) => s.modelId);
+  const setModelId = useUIStore((s) => s.setModelId);
+  const activeModel = models.find((m) => m.id === modelId) ?? models[0];
 
   const selectedKey = useMemo(() => {
     const match = NAV.find((item) => location.pathname.startsWith(item.key));
@@ -104,12 +109,40 @@ export function AppShell() {
           </Space>
 
           <Space size={8}>
+            <Select
+              size="small"
+              aria-label="选择模型"
+              className="model-select"
+              value={activeModel?.id}
+              onChange={setModelId}
+              placeholder="选择模型"
+              popupMatchSelectWidth={false}
+              options={models.map((m) => ({
+                value: m.id,
+                label: (
+                  <span className="model-option">
+                    <span className="model-dot" data-free={m.free} />
+                    {m.label}
+                    {m.free ? <em>免费</em> : null}
+                  </span>
+                ),
+              }))}
+              style={{ width: isMobile ? 118 : 174 }}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  {!models.some((m) => m.free) && (
+                    <div className="model-hint">在 .env 配置 SILICONFLOW_API_KEY 或 ZHIPU_API_KEY 可解锁免费模型</div>
+                  )}
+                </>
+              )}
+            />
             <Tooltip
               title={
                 health.mode === 'live'
-                  ? `当前模型：${health.model ?? ''}`
+                  ? '已连接模型服务'
                   : health.mode === 'mock'
-                    ? '服务端未配置 LLM_API_KEY，当前走内置 mock'
+                    ? '服务端未配置 API Key，当前走内置 mock'
                     : health.mode === 'offline'
                       ? '连不上 API 服务，请先运行 npm run dev'
                       : '正在检测服务状态'

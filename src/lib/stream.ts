@@ -18,6 +18,8 @@ interface StreamParams {
   messages: ChatMessage[];
   onDelta: (text: string) => void;
   signal?: AbortSignal;
+  /** 选中的模型，服务端据此路由到对应供应商 */
+  model?: string;
 }
 
 /**
@@ -26,7 +28,7 @@ interface StreamParams {
  * 前端只有这一条路径 —— 背后是真模型还是 mock，由服务端决定（看有没有配 LLM_API_KEY）。
  * 少一个分支，就少一类"本地好使、线上不对"的 bug。
  */
-export async function streamChat({ messages, onDelta, signal }: StreamParams): Promise<StreamStats> {
+export async function streamChat({ messages, onDelta, signal, model }: StreamParams): Promise<StreamStats> {
   const startedAt = performance.now();
   let ttftMs = 0;
   let chars = 0;
@@ -36,7 +38,7 @@ export async function streamChat({ messages, onDelta, signal }: StreamParams): P
   const response = await fetch(`${env.apiBase}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, model }),
     signal,
   });
 

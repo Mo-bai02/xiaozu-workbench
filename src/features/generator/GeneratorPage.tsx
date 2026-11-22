@@ -15,6 +15,7 @@ import { CodeOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { formatMs } from '@/lib/utils';
 import { SpecRenderer } from './SpecRenderer';
 import { useHealth } from '@/lib/health';
+import { useUIStore } from '@/store/ui';
 import { generateSpec, type UISpec } from './schema';
 
 const EXAMPLES = [
@@ -30,6 +31,7 @@ export function GeneratorPage() {
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const health = useHealth();
+  const modelId = useUIStore((s) => s.modelId);
   const demoStarted = useRef(false);
 
   const run = async () => {
@@ -38,7 +40,7 @@ export function GeneratorPage() {
     setError(null);
     const startedAt = performance.now();
     try {
-      const result = await generateSpec(prompt);
+      const result = await generateSpec(prompt, undefined, modelId || undefined);
       setSpec(result);
       setElapsed(performance.now() - startedAt);
     } catch (err) {

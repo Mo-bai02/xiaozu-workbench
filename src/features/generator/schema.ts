@@ -138,11 +138,11 @@ export function mockSpec(prompt: string): UISpec {
 }
 
 /** 请求服务端生成 Schema：真模型或 mock 由服务端决定，前端只负责校验。 */
-export async function generateSpec(prompt: string, signal?: AbortSignal): Promise<UISpec> {
+export async function generateSpec(prompt: string, signal?: AbortSignal, model?: string): Promise<UISpec> {
   const response = await fetch(`${env.apiBase}/generate/ui`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, model }),
     signal,
   });
   if (!response.ok) throw new Error(`生成失败：${response.status}`);

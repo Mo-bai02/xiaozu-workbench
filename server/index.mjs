@@ -1,13 +1,10 @@
 /**
  * 本地 API 服务（零依赖）。
  *
- * 两个模式，由环境变量决定：
- *   - 配了 LLM_API_KEY  → 真正转发到 OpenAI 兼容接口（DeepSeek / 通义 / 智谱 / 硅基流动）
- *   - 没配              → 内置 mock，仍然用真 SSE 推流，保证 clone 下来就能跑
- *
- * 为什么把 mock 放在这里、而不是前端？
- * 前端只保留一条代码路径（fetch /api/chat/stream），
- * 模式切换变成服务端的事 —— 前端不需要知道背后是真模型还是假的。
+ * 三件事：
+ * 1. 模型注册表：不同供应商的模型、地址、Key 都在这里；
+ * 2. 有 Key 就转发真实接口，没 Key 就退回内置 mock（仍然真 SSE 推流）；
+ * 3. 生成式 UI：让模型产出 UI Schema，前端负责校验和渲染。
  *
  * API Key 只存在于服务端进程，永远不会进浏览器。
  */
@@ -34,10 +31,58 @@ function loadEnv() {
 loadEnv();
 
 const PORT = Number(process.env.PORT || 8787);
-const BASE_URL = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/$/, '');
-const API_KEY = process.env.LLM_API_KEY || '';
-const MODEL = process.env.LLM_MODEL || 'deepseek-chat';
-const LIVE = Boolean(API_KEY);
+
+/**
+ * 供应商：每个供应商一个 base url + 一个 Key。
+ * LLM_API_KEY 作为兜底，方便只想配一个 Key 的人。
+ */
+const PROVIDERS = {
+  deepseek: {
+    base: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+    key: process.env.DEEPSEEK_API_KEY || process.env.LLM_API_KEY || '',
+    name: 'DeepSeek',
+  },
+  siliconflow: {
+    base: process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1',
+    key: process.env.SILICONFLOW_API_KEY || '',
+    name: '硅基流动',
+  },
+  zhipu: {
+    base: process.env.ZHIPU_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4',
+    key: process.env.ZHIPU_API_KEY || '',
+    name: '智谱',
+  },
+  dashscope: {
+    base: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    key: process.env.DASHSCOPE_API_KEY || '',
+    name: '通义千问',
+  },
+};
+
+/** 模型目录：free 只是「这个模型通常有免费额度」的标记，不代表一定免费 */
+const MODELS = [
+  { id: 'deepseek-chat', label: 'DeepSeek V3', provider: 'deepseek', free: false, note: '通用对话，便宜' },
+  { id: 'deepseek-reasoner', label: 'DeepSeek R1', provider: 'deepseek', free: false, note: '推理型，慢' },
+  { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen2.5 7B', provider: 'siliconflow', free: true, note: '硅基流动免费额度' },
+  { id: 'THUDM/glm-4-9b-chat', label: 'GLM-4 9B', provider: 'siliconflow', free: true, note: '硅基流动免费额度' },
+  { id: 'glm-4-flash', label: 'GLM-4 Flash', provider: 'zhipu', free: true, note: '智谱免费模型' },
+  { id: 'qwen-plus', label: 'Qwen Plus', provider: 'dashscope', free: false, note: '通义付费' },
+];
+
+const MOCK_MODEL = { id: 'mock', label: '内置模拟', provider: 'mock', free: true, note: '无需 Key' };
+
+function availableModels() {
+  const list = MODELS.filter((m) => PROVIDERS[m.provider]?.key);
+  return list.length ? list : [MOCK_MODEL];
+}
+
+/** 解析请求里的模型；非法或没有 Key 时退回第一个可用模型 */
+function resolveModel(modelId) {
+  const list = availableModels();
+  const found = list.find((m) => m.id === modelId);
+  if (found) return found;
+  return list[0] ?? MOCK_MODEL;
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -48,7 +93,7 @@ const CORS = {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ---------------------------------------------------------------------------
-// mock 回答：没有 Key 时用，按关键词切换内容
+// mock 回答
 // ---------------------------------------------------------------------------
 const REPLIES = {
   code: [
@@ -116,7 +161,6 @@ function pickReply(prompt = '') {
   return REPLIES.default;
 }
 
-/** 在 UTF-8 连续字节中间切一刀，模拟真实网络分包 */
 function splitMidCharacter(buffer) {
   for (let i = 1; i < buffer.length - 1; i += 1) {
     if ((buffer[i] & 0xc0) === 0x80) return [buffer.subarray(0, i), buffer.subarray(i)];
@@ -125,18 +169,6 @@ function splitMidCharacter(buffer) {
 }
 
 // ---------------------------------------------------------------------------
-// 工具
-// ---------------------------------------------------------------------------
-async function readJson(req) {
-  let body = '';
-  for await (const chunk of req) body += chunk;
-  try {
-    return JSON.parse(body || '{}');
-  } catch {
-    return {};
-  }
-}
-
 function sseHeaders() {
   return {
     ...CORS,
@@ -151,8 +183,16 @@ function writeEvent(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// ---------------------------------------------------------------------------
-// 对话：mock 或真实转发
+async function readJson(req) {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  try {
+    return JSON.parse(body || '{}');
+  } catch {
+    return {};
+  }
+}
+
 // ---------------------------------------------------------------------------
 async function mockChat(req, res, prompt) {
   res.writeHead(200, sseHeaders());
@@ -174,8 +214,6 @@ async function mockChat(req, res, prompt) {
       if (closed) return;
       res.write(part);
     }
-    // 真实模型的 token 是「一阵一阵」来的：连吐几个再来一下停顿。
-    // 故意模拟这种节奏，才能看出 rAF 批量合并的价值（每个 token 都等 16ms 反而看不出差别）。
     await sleep(index % 6 === 0 ? 60 : 2 + Math.random() * 3);
   }
 
@@ -185,32 +223,38 @@ async function mockChat(req, res, prompt) {
   res.end();
 }
 
-async function liveChat(req, res, messages) {
+async function liveChat(req, res, messages, model) {
+  const provider = PROVIDERS[model.provider];
   const controller = new AbortController();
-  // 客户端断开时，立刻掐掉上游请求，不浪费 token
   req.on('close', () => controller.abort());
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   let upstream;
   try {
-    upstream = await fetch(`${BASE_URL}/chat/completions`, {
+    upstream = await fetch(`${provider.base}/chat/completions`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, messages, stream: true, temperature: 0.7, max_tokens: 1500 }),
+      headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model.id,
+        messages,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 1500,
+      }),
       signal: controller.signal,
     });
   } catch (error) {
     clearTimeout(timeout);
-    res.writeHead(504, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: `上游连接失败：${error.message}` }));
+    res.writeHead(504, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: `${provider.name} 连接失败：${error.message}` }));
     return;
   }
 
   if (!upstream.ok || !upstream.body) {
     clearTimeout(timeout);
     const detail = await upstream.text().catch(() => '');
-    res.writeHead(upstream.status, { ...CORS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: `上游返回 ${upstream.status}：${detail.slice(0, 300)}` }));
+    res.writeHead(upstream.status, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: `${provider.name} 返回 ${upstream.status}：${detail.slice(0, 300)}` }));
     return;
   }
 
@@ -262,8 +306,13 @@ async function handleChat(req, res) {
   const body = await readJson(req);
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const prompt = messages.filter((m) => m.role === 'user').at(-1)?.content ?? '';
-  if (LIVE) await liveChat(req, res, messages);
-  else await mockChat(req, res, prompt);
+  const model = resolveModel(body.model);
+
+  if (model.provider === 'mock') {
+    await mockChat(req, res, prompt);
+    return;
+  }
+  await liveChat(req, res, messages, model);
 }
 
 // ---------------------------------------------------------------------------
@@ -298,7 +347,7 @@ const MOCK_SPECS = [
       layout: 'form',
       submitText: '提交入职信息',
       fields: [
-        { name: 'name', label: '姓名', type: 'input', required: true, placeholder: '请输入真实姓名', span: 12 },
+        { name: 'name', label: '姓名', type: 'input', required: true, placeholder: '请输入姓名', span: 12 },
         { name: 'employeeNo', label: '工号', type: 'input', required: true, span: 12 },
         {
           name: 'department',
@@ -333,12 +382,13 @@ const MOCK_SPECS = [
   },
 ];
 
-async function liveSpec(prompt) {
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
+async function liveSpec(prompt, model) {
+  const provider = PROVIDERS[model.provider];
+  const response = await fetch(`${provider.base}/chat/completions`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL,
+      model: model.id,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: prompt },
@@ -347,23 +397,23 @@ async function liveSpec(prompt) {
       response_format: { type: 'json_object' },
     }),
   });
-  if (!response.ok) throw new Error(`上游返回 ${response.status}`);
+  if (!response.ok) throw new Error(`${provider.name} 返回 ${response.status}`);
   const data = await response.json();
-  const text = data.choices?.[0]?.message?.content ?? '{}';
-  return JSON.parse(text);
+  return JSON.parse(data.choices?.[0]?.message?.content ?? '{}');
 }
 
 async function handleGenerate(req, res) {
-  const { prompt = '' } = await readJson(req);
+  const { prompt = '', model: modelId } = await readJson(req);
+  const model = resolveModel(modelId);
 
-  if (LIVE) {
+  if (model.provider !== 'mock') {
     try {
-      const spec = await liveSpec(prompt);
+      const spec = await liveSpec(prompt, model);
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(spec));
       return;
     } catch (error) {
-      res.writeHead(502, { ...CORS, 'Content-Type': 'application/json' });
+      res.writeHead(502, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: error.message }));
       return;
     }
@@ -402,8 +452,31 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (url.pathname === '/api/health') {
-      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', mode: LIVE ? 'live' : 'mock', model: LIVE ? MODEL : 'mock' }));
+      const models = availableModels();
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          status: 'ok',
+          mode: models[0]?.provider === 'mock' ? 'mock' : 'live',
+          model: models[0]?.id ?? 'mock',
+          models: models.length,
+        }),
+      );
+      return;
+    }
+    if (url.pathname === '/api/models') {
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          models: availableModels().map((m) => ({
+            id: m.id,
+            label: m.label,
+            free: m.free,
+            note: m.note,
+            provider: PROVIDERS[m.provider]?.name ?? '内置',
+          })),
+        }),
+      );
       return;
     }
     if (url.pathname === '/api/chat/stream' && req.method === 'POST') {
@@ -414,16 +487,19 @@ const server = http.createServer(async (req, res) => {
       await handleGenerate(req, res);
       return;
     }
-    res.writeHead(404, { ...CORS, 'Content-Type': 'application/json' });
+    res.writeHead(404, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'not found' }));
   } catch (error) {
     console.error('[server] error:', error);
-    if (!res.headersSent) res.writeHead(500, { ...CORS, 'Content-Type': 'application/json' });
+    if (!res.headersSent) res.writeHead(500, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: error.message }));
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`[server] http://127.0.0.1:${PORT}  mode=${LIVE ? `live (${MODEL})` : 'mock'}`);
-  if (!LIVE) console.log('[server] 未检测到 LLM_API_KEY，走内置 mock；在 .env 里配置后重启即为真实回答');
+  const models = availableModels();
+  console.log(`[server] http://127.0.0.1:${PORT}  可用模型：${models.map((m) => m.id).join(', ')}`);
+  if (models[0]?.provider === 'mock') {
+    console.log('[server] 未检测到任何 API Key，走内置 mock；在 .env 里配置后重启即为真实回答');
+  }
 });

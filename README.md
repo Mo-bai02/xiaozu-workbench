@@ -40,6 +40,21 @@ npm run dev
 
 支持任何 OpenAI 兼容接口：DeepSeek、通义千问、智谱、硅基流动、vLLM、Ollama。
 
+### 切换模型
+
+右上角下拉框切换模型，选择会记在 localStorage。服务端维护一份**模型目录**（server/index.mjs 的 MODELS），每个模型绑定到对应供应商：
+
+| 模型 | 供应商 | 是否免费 |
+|---|---|---|
+| DeepSeek V3 / R1 | DeepSeek | 付费（很便宜） |
+| Qwen2.5 7B / GLM-4 9B | 硅基流动 | 免费额度 |
+| GLM-4 Flash | 智谱 | 免费 |
+| Qwen Plus | 通义千问 | 付费 |
+
+**只显示配置了 Key 的模型** —— 没配 Key 的选项不会出现，避免选了必然失败的模型。
+
+想用免费模型：去[硅基流动](https://cloud.siliconflow.cn)或[智谱](https://open.bigmodel.cn)注册拿 Key，填进 .env 的 SILICONFLOW_API_KEY / ZHIPU_API_KEY，重启服务即可。
+
 ---
 
 ## 三个页面

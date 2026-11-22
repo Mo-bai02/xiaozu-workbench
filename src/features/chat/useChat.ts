@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamChat, type ChatMessage, type StreamStats } from '@/lib/stream';
 import { uid } from '@/lib/utils';
+import { useUIStore } from '@/store/ui';
 
 export type ChatStatus = 'streaming' | 'done' | 'error' | 'aborted';
 export type RenderStrategy = 'raf' | 'per-token';
@@ -35,6 +36,7 @@ export function useChat() {
   const [streaming, setStreaming] = useState(false);
   const [metrics, setMetrics] = useState<LiveMetrics>(EMPTY_METRICS);
   const [strategy, setStrategy] = useState<RenderStrategy>('raf');
+  const modelId = useUIStore((s) => s.modelId);
 
   const bufferRef = useRef('');
   const rafRef = useRef<number | null>(null);
@@ -132,6 +134,7 @@ export function useChat() {
           messages: [...history, { role: 'user', content: text }],
           onDelta,
           signal: controller.signal,
+          model: modelId || undefined,
         });
         if (rafRef.current !== null) {
           cancelAnimationFrame(rafRef.current);
@@ -159,7 +162,7 @@ export function useChat() {
         setMetrics((m) => ({ ...m, chars: charsRef.current, renders: rendersRef.current }));
       }
     },
-    [onDelta, patchLast, streaming],
+    [modelId, onDelta, patchLast, streaming],
   );
 
   const send = useCallback(
