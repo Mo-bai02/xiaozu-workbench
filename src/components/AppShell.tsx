@@ -107,7 +107,7 @@ export function AppShell() {
             <Tooltip
               title={
                 health.mode === 'live'
-                  ? `已接入真实模型：${health.model ?? ''}`
+                  ? `当前模型：${health.model ?? ''}`
                   : health.mode === 'mock'
                     ? '服务端未配置 LLM_API_KEY，当前走内置 mock'
                     : health.mode === 'offline'

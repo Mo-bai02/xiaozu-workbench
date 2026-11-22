@@ -3,7 +3,7 @@ import { env } from '@/env';
 
 export interface Health {
   status: string;
-  /** live = 已接入真实模型；mock = 服务端未配置 Key，走内置模拟 */
+  /** live = 已接入模型；mock = 服务端未配置 Key，走内置模拟 */
   mode: 'live' | 'mock' | 'offline' | 'loading';
   model?: string;
 }
