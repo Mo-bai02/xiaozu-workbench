@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import { env } from '@/env';
 import { useHealth } from '@/lib/health';
-import { useModels } from '@/lib/models';
+import { useModels, type ModelOption } from '@/lib/models';
 import { useUIStore } from '@/store/ui';
 
 const { Header, Sider, Content } = Layout;
@@ -117,22 +117,24 @@ export function AppShell() {
               onChange={setModelId}
               placeholder="选择模型"
               popupMatchSelectWidth={false}
-              options={models.map((m) => ({
-                value: m.id,
-                label: (
+              options={models.map((m) => ({ value: m.id, label: m.label, model: m }))}
+              optionRender={(option) => {
+                const model = (option.data as { model?: ModelOption }).model;
+                if (!model) return option.label;
+                return (
                   <span className="model-option">
-                    <span className="model-dot" data-free={m.free} />
-                    {m.label}
-                    {m.free ? <em>免费</em> : null}
+                    <span className="model-dot" data-free={model.free} />
+                    {model.label}
+                    {model.free ? <em>免费额度</em> : null}
                   </span>
-                ),
-              }))}
+                );
+              }}
               style={{ width: isMobile ? 118 : 174 }}
               dropdownRender={(menu) => (
                 <>
                   {menu}
                   {!models.some((m) => m.free) && (
-                    <div className="model-hint">在 .env 配置 SILICONFLOW_API_KEY 或 ZHIPU_API_KEY 可解锁免费模型</div>
+                    <div className="model-hint">在 .env 配置 DASHSCOPE / SILICONFLOW / ZHIPU / ARK 任一 Key，即可解锁对应模型</div>
                   )}
                 </>
               )}

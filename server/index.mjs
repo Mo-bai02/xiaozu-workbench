@@ -55,7 +55,12 @@ const PROVIDERS = {
   dashscope: {
     base: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     key: process.env.DASHSCOPE_API_KEY || '',
-    name: '通义千问',
+    name: '阿里百炼',
+  },
+  ark: {
+    base: process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3',
+    key: process.env.ARK_API_KEY || '',
+    name: '火山方舟',
   },
 };
 
@@ -66,7 +71,11 @@ const MODELS = [
   { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen2.5 7B', provider: 'siliconflow', free: true, note: '硅基流动免费额度' },
   { id: 'THUDM/glm-4-9b-chat', label: 'GLM-4 9B', provider: 'siliconflow', free: true, note: '硅基流动免费额度' },
   { id: 'glm-4-flash', label: 'GLM-4 Flash', provider: 'zhipu', free: true, note: '智谱免费模型' },
-  { id: 'qwen-plus', label: 'Qwen Plus', provider: 'dashscope', free: false, note: '通义付费' },
+  { id: 'qwen-turbo', label: 'Qwen Turbo', provider: 'dashscope', free: true, note: '百炼免费额度' },
+  { id: 'qwen-plus', label: 'Qwen Plus', provider: 'dashscope', free: true, note: '百炼免费额度，效果更好' },
+  { id: 'qwen-max', label: 'Qwen Max', provider: 'dashscope', free: false, note: '百炼旗舰，较贵' },
+  { id: 'qwen-long', label: 'Qwen Long', provider: 'dashscope', free: true, note: '长文本，百炼免费额度' },
+  { id: 'doubao-1-5-pro-32k-250115', label: '豆包 Pro 32K', provider: 'ark', free: true, note: '火山方舟免费额度' },
 ];
 
 const MOCK_MODEL = { id: 'mock', label: '内置模拟', provider: 'mock', free: true, note: '无需 Key' };
