@@ -2476,57 +2476,153 @@ html[data-theme='dark'] .alert-banner {
   overflow: hidden;
 }
 
-.auth-blobs {
-  position: absolute;
+.aurora {
+  position: fixed;
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
   z-index: 0;
 }
 
-.blob {
+/* 页面上除背景以外的内容都压在上层 */
+.auth-page > *:not(.aurora) {
+  position: relative;
+  z-index: 1;
+}
+
+.aurora-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.55;
-  animation: blobFloat 26s ease-in-out infinite;
+  filter: blur(64px);
+  opacity: 0.5;
+  will-change: transform;
 }
 
-.blob-1 {
-  width: 320px;
-  height: 320px;
-  left: -60px;
-  top: -40px;
-  background: rgba(59, 110, 246, 0.35);
+.aurora-1 {
+  width: 340px;
+  height: 340px;
+  left: -80px;
+  top: -60px;
+  background: radial-gradient(circle at 30% 30%, rgba(59, 110, 246, 0.55), rgba(59, 110, 246, 0));
+  animation: auroraDrift1 30s ease-in-out infinite;
 }
 
-.blob-2 {
-  width: 280px;
-  height: 280px;
-  right: -50px;
-  top: 18%;
-  background: rgba(124, 92, 255, 0.28);
-  animation-delay: -6s;
+.aurora-2 {
+  width: 300px;
+  height: 300px;
+  right: -70px;
+  top: 14%;
+  background: radial-gradient(circle at 60% 40%, rgba(124, 92, 255, 0.5), rgba(124, 92, 255, 0));
+  animation: auroraDrift2 38s ease-in-out infinite;
 }
 
-.blob-3 {
-  width: 240px;
-  height: 240px;
-  left: 35%;
-  bottom: -80px;
-  background: rgba(59, 196, 246, 0.22);
-  animation-delay: -12s;
+.aurora-3 {
+  width: 260px;
+  height: 260px;
+  left: 32%;
+  bottom: -90px;
+  background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.4), rgba(56, 189, 248, 0));
+  animation: auroraDrift3 26s ease-in-out infinite;
 }
 
-@keyframes blobFloat {
+.aurora-4 {
+  width: 220px;
+  height: 220px;
+  right: 18%;
+  bottom: 8%;
+  background: radial-gradient(circle at 50% 50%, rgba(244, 114, 182, 0.28), rgba(244, 114, 182, 0));
+  animation: auroraDrift4 34s ease-in-out infinite;
+}
+
+@keyframes auroraDrift1 {
   0%,
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
-  33% {
-    transform: translate3d(24px, -18px, 0) scale(1.06);
+  50% {
+    transform: translate3d(60px, 40px, 0) scale(1.12);
   }
-  66% {
-    transform: translate3d(-18px, 16px, 0) scale(0.96);
+}
+
+@keyframes auroraDrift2 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-50px, 60px, 0) scale(0.95);
+  }
+}
+
+@keyframes auroraDrift3 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(40px, -50px, 0) scale(1.15);
+  }
+}
+
+@keyframes auroraDrift4 {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  50% {
+    transform: translate3d(-40px, -30px, 0) scale(1.1);
+  }
+}
+
+/* 一层很淡的斜向流光，让背景"活"起来但不抢内容 */
+.aurora-sheen {
+  position: absolute;
+  inset: -20%;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0) 65%
+  );
+  animation: sheenSweep 18s ease-in-out infinite;
+}
+
+html[data-theme='dark'] .aurora-sheen {
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(120, 160, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0) 65%
+  );
+}
+
+@keyframes sheenSweep {
+  0% {
+    transform: translate3d(-60%, 0, 0);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(60%, 0, 0);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .aurora-blob {
+    filter: blur(48px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob,
+  .aurora-sheen {
+    animation: none !important;
   }
 }
 

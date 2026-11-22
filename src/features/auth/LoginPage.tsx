@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Input, Segmented, Typography } from 'antd';
 import { LockOutlined, SafetyOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { AuroraBackground } from '@/components/AuroraBackground';
 import { api } from '@/lib/http';
 import { passwordStrength } from '@/lib/password';
 import { useAuthStore } from '@/store/auth';
@@ -113,11 +114,7 @@ export function LoginPage() {
 
   return (
     <div className={entering === null ? 'auth-page' : 'auth-page is-entering'}>
-      <div className="auth-blobs" aria-hidden="true">
-        <span className="blob blob-1" />
-        <span className="blob blob-2" />
-        <span className="blob blob-3" />
-      </div>
+      <AuroraBackground />
 
       <div className="auth-brand">
         <span className="auth-logo">AI</span>

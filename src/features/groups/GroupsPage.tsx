@@ -16,6 +16,7 @@ import {
 } from 'antd';
 import { CopyOutlined, PlusOutlined, TeamOutlined, ThunderboltFilled } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { AuroraBackground } from '@/components/AuroraBackground';
 import { api } from '@/lib/http';
 import { cstDayKey, formatCst } from '@/lib/time';
 import { useAuthStore } from '@/store/auth';
@@ -198,6 +199,8 @@ export function GroupsPage() {
 
   return (
     <div className="auth-page groups-page">
+      <AuroraBackground />
+
       <div className="groups-head">
         <div>
           <Typography.Title level={3} style={{ marginBottom: 2 }}>
