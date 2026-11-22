@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BulbOutlined, ClearOutlined, DownOutlined, ThunderboltFilled } from '@ant-design/icons';
+import {
+  AudioOutlined,
+  BulbOutlined,
+  FileTextOutlined,
+  SearchOutlined,
+  ThunderboltFilled,
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import { useNotesStore } from '@/features/notes/store';
+import { useUIStore } from '@/store/ui';
 import { cn } from '@/lib/utils';
 
-interface Props {
-  onNewChat: () => void;
-  onScrollBottom: () => void;
-  onToggleTheme: () => void;
-}
-
 const STORAGE_KEY = 'ai-console:fab';
-const SIZE = 52;
-const MARGIN = 10;
+const SIZE = 54;
+const MARGIN = 12;
 
 interface Point {
   x: number;
@@ -36,21 +39,30 @@ function loadPoint(): Point {
   } catch {
     /* 忽略损坏的存储 */
   }
-  return clamp({ x: window.innerWidth - SIZE - 24, y: window.innerHeight - SIZE - 120 });
+  return clamp({ x: window.innerWidth - SIZE - 24, y: window.innerHeight - SIZE - 96 });
 }
 
 /**
- * 悬浮球：可拖动、可吸附、点击弹出快捷操作。
+ * 全局悬浮球。
  *
- * 实现要点（面试可讲）：
- * - 用 Pointer Events 统一鼠标/触摸，不用分别写 mouse + touch；
- * - 拖动阈值 4px：小于它算"点击"，大于它算"拖拽"，避免拖完手一松就误触菜单；
- * - 位置存 localStorage，窗口 resize 时重新夹紧到视口内，防止球跑到屏幕外找不回来。
+ * 交互上做了几件事：
+ * - Pointer Events 统一鼠标与触摸；4px 阈值区分"点击"和"拖拽"，避免拖完误触
+ * - 松手吸附到最近的水平边缘，位置存 localStorage
+ * - 菜单项逐个错峰入场（animation-delay），而不是整块弹出
+ * - 打开时点空白处或按 Esc 关闭
  */
-export function FloatingBall({ onNewChat, onScrollBottom, onToggleTheme }: Props) {
+export function FloatingBall() {
+  const navigate = useNavigate();
+  const createNote = useNotesStore((s) => s.create);
+  const toggleDark = useUIStore((s) => s.toggleDark);
+  const setPaletteOpen = useUIStore((s) => s.setPaletteOpen);
+
   const [point, setPoint] = useState<Point | null>(null);
   const [open, setOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  /** 拖拽结束时浏览器还会补一个 click，用它把那次点击吞掉 */
+  const suppressClickRef = useRef(false);
   const dragRef = useRef<{ startX: number; startY: number; origin: Point; moved: boolean } | null>(null);
 
   useEffect(() => {
@@ -60,16 +72,32 @@ export function FloatingBall({ onNewChat, onScrollBottom, onToggleTheme }: Props
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
       if (!point) return;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      dragRef.current = {
-        startX: event.clientX,
-        startY: event.clientY,
-        origin: point,
-        moved: false,
-      };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* 合成事件里没有真实 pointerId，忽略即可 */
+      }
+      dragRef.current = { startX: event.clientX, startY: event.clientY, origin: point, moved: false };
+      suppressClickRef.current = false;
       setDragging(true);
     },
     [point],
@@ -82,6 +110,7 @@ export function FloatingBall({ onNewChat, onScrollBottom, onToggleTheme }: Props
     const dy = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) < 4) return;
     drag.moved = true;
+    suppressClickRef.current = true;
     setOpen(false);
     setPoint(clamp({ x: drag.origin.x + dx, y: drag.origin.y + dy }));
   }, []);
@@ -93,14 +122,13 @@ export function FloatingBall({ onNewChat, onScrollBottom, onToggleTheme }: Props
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (drag && !drag.moved) {
-      setOpen((v) => !v);
-      return;
-    }
+    if (!drag || !drag.moved) return;
     setPoint((prev) => {
       if (!prev) return prev;
-      // 松手后吸附到最近的水平边缘，视觉上更稳
-      const snapped = clamp({ x: prev.x < window.innerWidth / 2 ? MARGIN + 8 : window.innerWidth - SIZE - MARGIN - 8, y: prev.y });
+      const snapped = clamp({
+        x: prev.x < window.innerWidth / 2 ? MARGIN + 8 : window.innerWidth - SIZE - MARGIN - 8,
+        y: prev.y,
+      });
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(snapped));
       } catch {
@@ -112,50 +140,74 @@ export function FloatingBall({ onNewChat, onScrollBottom, onToggleTheme }: Props
 
   if (!point) return null;
 
-  const menuAbove = point.y > 260;
+  const actions = [
+    {
+      key: 'voice',
+      label: '语音提问',
+      icon: <AudioOutlined />,
+      run: () => navigate('/chat?voice=1'),
+    },
+    {
+      key: 'note',
+      label: '新建笔记',
+      icon: <FileTextOutlined />,
+      run: () => {
+        createNote();
+        navigate('/notes');
+      },
+    },
+    {
+      key: 'palette',
+      label: '命令面板',
+      icon: <SearchOutlined />,
+      run: () => setPaletteOpen(true),
+    },
+    {
+      key: 'theme',
+      label: '切换主题',
+      icon: <BulbOutlined />,
+      run: () => toggleDark(),
+    },
+  ];
 
   return (
-    <div className="fab-root" style={{ left: point.x, top: point.y }}>
+    <div ref={rootRef} className="fab-root" style={{ left: point.x, top: point.y }}>
       {open && (
-        <div className={cn('fab-menu', menuAbove ? 'is-above' : 'is-below')}>
-          <button
-            type="button"
-            onClick={() => {
-              onNewChat();
-              setOpen(false);
-            }}
-          >
-            <ClearOutlined /> 新建对话
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onScrollBottom();
-              setOpen(false);
-            }}
-          >
-            <DownOutlined /> 回到最新
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onToggleTheme();
-              setOpen(false);
-            }}
-          >
-            <BulbOutlined /> 切换主题
-          </button>
+        <div className="fab-menu">
+          {actions.map((action, index) => (
+            <button
+              key={action.key}
+              type="button"
+              className="fab-item"
+              style={{ animationDelay: `${index * 45}ms` }}
+              onClick={() => {
+                action.run();
+                setOpen(false);
+              }}
+            >
+              <span className="fab-item-label">{action.label}</span>
+              <span className="fab-item-icon">{action.icon}</span>
+            </button>
+          ))}
         </div>
       )}
 
       <button
         type="button"
         aria-label="快捷操作"
+        aria-expanded={open}
         className={cn('fab', dragging && 'is-dragging', open && 'is-open')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          setOpen((v) => !v);
+        }}
       >
         <ThunderboltFilled />
       </button>

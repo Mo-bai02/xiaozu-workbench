@@ -22,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { env } from '@/env';
 import { CommandPalette, SHORTCUT_LABEL } from '@/components/CommandPalette';
+import { FloatingBall } from '@/components/FloatingBall';
 import { useHealth } from '@/lib/health';
 import { useModels, type ModelOption } from '@/lib/models';
 import { useUIStore } from '@/store/ui';
@@ -217,6 +218,7 @@ export function AppShell() {
       </Layout>
 
       <CommandPalette />
+      <FloatingBall />
 
       <Drawer
         open={drawerOpen}

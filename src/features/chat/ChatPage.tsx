@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  App as AntdApp,
   Avatar,
   Button,
   Drawer,
@@ -13,6 +14,7 @@ import {
   Typography,
 } from 'antd';
 import {
+  AudioOutlined,
   ClearOutlined,
   CopyOutlined,
   DownOutlined,
@@ -26,11 +28,10 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { DynamicIsland } from '@/components/DynamicIsland';
-import { FloatingBall } from '@/components/FloatingBall';
 import { Markdown } from '@/components/Markdown';
+import { SpeechRecognizer, speechSupported } from '@/lib/speech';
 import { formatMs, formatNumber } from '@/lib/utils';
 import { useSessionStore } from '@/store/sessions';
-import { useUIStore } from '@/store/ui';
 import { useChat, type ChatItem, type RenderStrategy } from './useChat';
 import { SessionRail } from './SessionRail';
 
@@ -138,11 +139,14 @@ export function ChatPage() {
   const [railOpen, setRailOpen] = useState(false);
   const [input, setInput] = useState('');
   const [atBottom, setAtBottom] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState('');
+  const recognizerRef = useRef<SpeechRecognizer | null>(null);
+  const { message } = AntdApp.useApp();
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const demoStarted = useRef(false);
   const booted = useRef(false);
-  const toggleDark = useUIStore((s) => s.toggleDark);
 
   const activeSession = sessions.find((s) => s.id === activeId);
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -199,6 +203,48 @@ export function ChatPage() {
     pinnedRef.current = nearBottom;
     setAtBottom(nearBottom);
   };
+
+  const startVoice = useCallback(() => {
+    if (!speechSupported) {
+      message.warning('当前浏览器不支持语音识别，推荐 Chrome 或 Edge');
+      return;
+    }
+    if (!recognizerRef.current) {
+      recognizerRef.current = new SpeechRecognizer({
+        onFinal: (text) => {
+          setInterim('');
+          setInput((prev) => (prev ? `${prev}${text}` : text));
+        },
+        onInterim: setInterim,
+        onError: (msg) => message.error(msg),
+        onEnd: () => {
+          setListening(false);
+          setInterim('');
+        },
+      });
+    }
+    setListening(true);
+    recognizerRef.current.start();
+  }, [message]);
+
+  const toggleVoice = () => {
+    if (listening) {
+      recognizerRef.current?.stop();
+      setListening(false);
+      setInterim('');
+      return;
+    }
+    startVoice();
+  };
+
+  // 从悬浮球的「语音提问」过来：?voice=1 直接开始听
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('voice') !== '1') return;
+    window.history.replaceState({}, '', '/chat');
+    startVoice();
+  }, [startVoice]);
+
+  useEffect(() => () => recognizerRef.current?.stop(), []);
 
   const submit = () => {
     if (!input.trim() || streaming) return;
@@ -352,6 +398,7 @@ export function ChatPage() {
         )}
 
         <div className="composer">
+          {interim && <div className="composer-interim">{interim}</div>}
           <Input.TextArea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -362,10 +409,21 @@ export function ChatPage() {
               }
             }}
             autoSize={{ minRows: 1, maxRows: 5 }}
-            placeholder="输入问题，Enter 发送"
+            placeholder={listening ? '正在听…' : '输入问题，Enter 发送'}
             disabled={streaming}
             className="composer-input"
           />
+          <Tooltip
+            title={speechSupported ? (listening ? '停止录音' : '语音输入') : '当前浏览器不支持语音识别'}
+          >
+            <Button
+              aria-label="语音输入"
+              className={listening ? 'mic is-listening' : 'mic'}
+              icon={<AudioOutlined />}
+              onClick={toggleVoice}
+              disabled={!speechSupported || streaming}
+            />
+          </Tooltip>
           {streaming ? (
             <Button danger icon={<StopOutlined />} onClick={stop}>
               停止
@@ -379,12 +437,6 @@ export function ChatPage() {
             <Button icon={<ClearOutlined />} onClick={newChat} disabled={streaming} />
           </Tooltip>
         </div>
-
-        <FloatingBall
-          onNewChat={newChat}
-          onScrollBottom={() => scrollToBottom()}
-          onToggleTheme={toggleDark}
-        />
       </div>
 
       <Drawer

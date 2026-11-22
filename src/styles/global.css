@@ -717,83 +717,167 @@ body {
 }
 
 .fab {
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   border: none;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 20px;
+  font-size: 21px;
   cursor: grab;
-  background: linear-gradient(135deg, #3b6ef6, #7a5cff);
-  box-shadow: 0 10px 24px rgba(59, 110, 246, 0.38);
+  background: linear-gradient(140deg, #3b6ef6 0%, #6b5cff 55%, #8a5cf6 100%);
+  box-shadow:
+    0 10px 24px rgba(59, 110, 246, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
   touch-action: none;
+}
+
+.fab::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(59, 110, 246, 0.35);
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 0.25s ease,
+    transform 0.35s ease;
+  pointer-events: none;
 }
 
 .fab:hover {
   transform: scale(1.06);
+  filter: saturate(1.1);
+}
+
+.fab:hover::after {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .fab.is-dragging {
   cursor: grabbing;
-  transform: scale(1.1);
-  box-shadow: 0 14px 30px rgba(59, 110, 246, 0.5);
+  transform: scale(1.12);
+  box-shadow: 0 16px 34px rgba(59, 110, 246, 0.5);
 }
 
 .fab.is-open {
-  transform: rotate(45deg);
+  transform: rotate(135deg) scale(1.04);
 }
 
 .fab-menu {
   position: absolute;
   right: 0;
-  min-width: 136px;
-  padding: 6px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  bottom: 66px;
   display: flex;
   flex-direction: column;
-  animation: fabIn 0.16s ease-out;
+  align-items: flex-end;
+  gap: 10px;
 }
 
-.fab-menu.is-above {
-  bottom: 62px;
-}
-
-.fab-menu.is-below {
-  top: 62px;
-}
-
-.fab-menu button {
+.fab-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 0;
   border: none;
-  border-radius: 8px;
   background: transparent;
+  cursor: pointer;
+  animation: fabItemIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fab-item-label {
+  padding: 5px 11px;
+  border-radius: 9px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   color: var(--text);
   font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
+  white-space: nowrap;
 }
 
-.fab-menu button:hover {
-  background: var(--accent-soft);
+.fab-item-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   color: var(--accent);
+  font-size: 16px;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-@keyframes fabIn {
+.fab-item:hover .fab-item-icon {
+  transform: scale(1.08);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+@keyframes fabItemIn {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.96);
+    transform: translateY(10px) scale(0.9);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---- 语音输入 ---- */
+
+.mic {
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.mic.is-listening {
+  color: #e5484d;
+  border-color: #e5484d;
+  animation: micPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(229, 72, 77, 0);
+  }
+}
+
+.composer-interim {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 100%;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  pointer-events: none;
+}
+
+.composer {
+  position: relative;
 }
 
 /* ---------------- 消息操作 / 回到底部 ---------------- */

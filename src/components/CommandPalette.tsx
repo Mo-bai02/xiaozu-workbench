@@ -102,7 +102,7 @@ export function CommandPalette() {
       {
         id: 'theme',
         title: '切换深浅色主题',
-        hint: '当前设置会记住',
+        hint: '会保存',
         group: '操作',
         icon: <SwapOutlined />,
         run: () => {
