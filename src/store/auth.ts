@@ -15,7 +15,12 @@ interface AuthState {
   error: string | null;
   bootstrap: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, displayName: string) => Promise<void>;
+  register: (
+    username: string,
+    password: string,
+    displayName: string,
+    captcha: { id: string; text: string },
+  ) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -58,13 +63,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (username, password, displayName) => {
+  register: async (username, password, displayName, captcha) => {
     set({ pending: true, error: null });
     try {
       const data = await api<{ token: string; user: User }>('/auth/register', {
         method: 'POST',
         anonymous: true,
-        body: { username, password, displayName },
+        body: {
+          username,
+          password,
+          displayName,
+          captchaId: captcha.id,
+          captchaText: captcha.text,
+        },
       });
       setToken(data.token);
       set({ user: data.user, pending: false });

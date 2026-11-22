@@ -1,14 +1,48 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Input, Segmented, Typography } from 'antd';
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import { LockOutlined, SafetyOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { api } from '@/lib/http';
+import { passwordStrength } from '@/lib/password';
 import { useAuthStore } from '@/store/auth';
 import { useGroupStore } from '@/store/group';
 
 interface LoginValues {
   username: string;
   password: string;
+  confirm?: string;
   displayName?: string;
+  captcha?: string;
+}
+
+interface Captcha {
+  id: string;
+  image: string;
+}
+
+function StrengthMeter({ value }: { value: string }) {
+  const strength = passwordStrength(value);
+  if (!value) return null;
+
+  return (
+    <div className="pw-meter">
+      <div className="pw-bars">
+        {[1, 2, 3, 4].map((level) => (
+          <span
+            key={level}
+            className="pw-bar"
+            style={{ background: level <= strength.score ? strength.color : 'var(--border)' }}
+          />
+        ))}
+        <span className="pw-label" style={{ color: strength.color }}>
+          {strength.label}
+        </span>
+      </div>
+      {strength.tips.length > 0 && (
+        <div className="pw-tips">还可以：{strength.tips.join('、')}</div>
+      )}
+    </div>
+  );
 }
 
 export function LoginPage() {
@@ -18,18 +52,45 @@ export function LoginPage() {
   const pending = useAuthStore((s) => s.pending);
   const error = useAuthStore((s) => s.error);
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [captcha, setCaptcha] = useState<Captcha | null>(null);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [password, setPassword] = useState('');
   const [form] = Form.useForm<LoginValues>();
+
+  const loadCaptcha = useCallback(async () => {
+    setCaptchaLoading(true);
+    try {
+      const data = await api<Captcha>('/auth/captcha', { anonymous: true });
+      setCaptcha(data);
+      form.setFieldValue('captcha', '');
+    } catch {
+      setCaptcha(null);
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, [form]);
+
+  useEffect(() => {
+    if (mode === 'register' && !captcha) void loadCaptcha();
+  }, [mode, captcha, loadCaptcha]);
 
   const submit = async (values: LoginValues) => {
     try {
-      if (mode === 'login') await login(values.username, values.password);
-      else await register(values.username, values.password, values.displayName ?? values.username);
+      if (mode === 'login') {
+        await login(values.username, values.password);
+      } else {
+        await register(values.username, values.password, values.displayName ?? values.username, {
+          id: captcha?.id ?? '',
+          text: values.captcha ?? '',
+        });
+      }
 
       await useGroupStore.getState().fetchGroups();
       const hasGroup = useGroupStore.getState().groups.length > 0;
       navigate(hasGroup ? '/overview' : '/groups', { replace: true });
     } catch {
-      /* 错误信息已经存在 store 里，由 Alert 展示 */
+      // 验证码一次性，失败后换一张，避免用户对着同一个死码反复输
+      if (mode === 'register') void loadCaptcha();
     }
   };
 
@@ -55,6 +116,7 @@ export function LoginPage() {
             setMode(value as 'login' | 'register');
             useAuthStore.getState().clearError();
             form.resetFields();
+            setPassword('');
           }}
           options={[
             { label: '登录', value: 'login' },
@@ -95,14 +157,84 @@ export function LoginPage() {
               prefix={<LockOutlined />}
               placeholder={mode === 'register' ? '至少 6 位' : ''}
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+              onChange={(event) => setPassword(event.target.value)}
             />
           </Form.Item>
+
+          {mode === 'register' && (
+            <>
+              <StrengthMeter value={password} />
+
+              <Form.Item
+                name="confirm"
+                label="确认密码"
+                dependencies={['password']}
+                hasFeedback
+                rules={[
+                  { required: true, message: '再输入一次密码' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('password') === value) return Promise.resolve();
+                      return Promise.reject(new Error('两次输入不一致'));
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password
+                  prefix={<LockOutlined />}
+                  placeholder="再输入一次"
+                  autoComplete="new-password"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="captcha"
+                label="验证码"
+                rules={[
+                  { required: true, message: '请输入验证码' },
+                  { len: 4, message: '验证码是 4 位' },
+                ]}
+              >
+                <div className="captcha-row">
+                  <Input
+                    prefix={<SafetyOutlined />}
+                    placeholder="看图输入"
+                    maxLength={4}
+                    autoComplete="off"
+                    style={{ flex: 1, textTransform: 'uppercase' }}
+                  />
+                  <button
+                    type="button"
+                    className="captcha-img"
+                    onClick={() => void loadCaptcha()}
+                    title="看不清？换一张"
+                  >
+                    {captcha ? (
+                      <img src={captcha.image} alt="验证码" width={120} height={40} />
+                    ) : (
+                      <span className="captcha-placeholder">
+                        {captchaLoading ? '加载中…' : '点击获取'}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </Form.Item>
+            </>
+          )}
 
           <Button type="primary" htmlType="submit" block loading={pending} size="large">
             {mode === 'login' ? '登录' : '注册并进入'}
           </Button>
-        </Form>
 
+          {mode === 'register' && (
+            <Typography.Text
+              type="secondary"
+              style={{ fontSize: 11.5, display: 'block', marginTop: 10 }}
+            >
+              点图片换一张
+            </Typography.Text>
+          )}
+        </Form>
       </Card>
     </div>
   );

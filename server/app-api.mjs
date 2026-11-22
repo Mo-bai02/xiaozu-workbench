@@ -6,6 +6,7 @@
  *   代价是 token 存在 localStorage，XSS 能偷走 —— 所以渲染层必须继续用 DOMPurify。
  * - 所有 group 数据都要先过 membership()，权限判断集中在 requireMember / requireManager。
  */
+import { issueCaptcha, verifyCaptcha } from './captcha.mjs';
 import {
   addFocus,
   cstDayRange,
@@ -100,12 +101,20 @@ export async function handleAppApi(req, res, url) {
 
   try {
     // ------------------------------------------------------------------ 认证
+    if (path === '/api/auth/captcha' && req.method === 'GET') {
+      return json(res, 200, issueCaptcha()), true;
+    }
+
     if (path === '/api/auth/register' && req.method === 'POST') {
       const body = await readBody(req);
       const username = String(body.username ?? '').trim();
       const password = String(body.password ?? '');
       const displayName = String(body.displayName ?? '').trim() || username;
 
+      // 先验验证码：一次性，错了就作废，得刷新再试
+      if (!verifyCaptcha(body.captchaId, body.captchaText)) {
+        return bad(res, '验证码不对，换一个试试'), true;
+      }
       if (!USERNAME_RE.test(username)) return bad(res, '用户名需 3-20 位字母、数字或下划线'), true;
       if (password.length < 6) return bad(res, '密码至少 6 位'), true;
       if (getUserByName(username)) return bad(res, '这个用户名已被注册'), true;
