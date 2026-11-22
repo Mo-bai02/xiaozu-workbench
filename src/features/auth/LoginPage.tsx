@@ -81,7 +81,7 @@ export function LoginPage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('enter') !== '1') return;
     setEntering(user?.displayName ?? '陈鹏宇');
-    const timer = window.setTimeout(() => setEntering(null), 1600);
+    const timer = window.setTimeout(() => setEntering(null), 2400);
     return () => window.clearTimeout(timer);
   }, [user?.displayName]);
 
@@ -101,9 +101,10 @@ export function LoginPage() {
 
       const name = useAuthStore.getState().user?.displayName ?? '';
       setEntering(name);
+      // 过场放慢一点，给动画留出呼吸
       window.setTimeout(() => {
         navigate(hasGroup ? '/overview' : '/groups', { replace: true });
-      }, 900);
+      }, 1600);
     } catch {
       // 验证码一次性，失败后换一张，避免用户对着同一个死码反复输
       if (mode === 'register') void loadCaptcha();
@@ -130,7 +131,7 @@ export function LoginPage() {
         </div>
       </div>
 
-      <Card className="auth-card auth-rise" style={{ animationDelay: '80ms' }}>
+      <Card className="auth-card auth-rise" style={{ animationDelay: '140ms' }}>
         <Segmented
           block
           value={mode}

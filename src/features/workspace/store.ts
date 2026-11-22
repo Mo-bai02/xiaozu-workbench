@@ -72,11 +72,13 @@ function deriveActivities(tasks: Task[], members: Member[]): Activity[] {
   const nameOf = new Map(members.map((m) => [m.id, m.displayName]));
   const events: Activity[] = [];
   for (const task of tasks) {
-    const who = task.assigneeId ? (nameOf.get(task.assigneeId) ?? '有人') : '有人';
+    const who = task.assigneeId ? (nameOf.get(task.assigneeId) ?? '未指派') : '未指派';
     if (task.status === 'done' && task.completedAt) {
-      events.push({ id: `c-${task.id}`, who, action: '完成了任务', target: task.title, at: task.completedAt });
+      events.push({ id: `c-${task.id}`, who, action: '完成了', target: task.title, at: task.completedAt });
+      continue;
     }
-    events.push({ id: `n-${task.id}`, who, action: '在跟任务', target: task.title, at: task.createdAt });
+    const action = task.status === 'doing' ? '正在做' : '待办';
+    events.push({ id: `n-${task.id}`, who, action, target: task.title, at: task.createdAt });
   }
   return events.sort((a, b) => b.at - a.at).slice(0, 6);
 }

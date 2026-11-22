@@ -221,7 +221,7 @@ export function FocusPage() {
           专注计时
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          到点会弹窗并发送系统通知。
+          记录只属于你，不随小组切换。到点会弹窗并发送系统通知。
         </Typography.Paragraph>
       </div>
 

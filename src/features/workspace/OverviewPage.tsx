@@ -5,7 +5,6 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   FileTextOutlined,
-  FieldTimeOutlined,
   RobotOutlined,
   WalletOutlined,
   WarningOutlined,
@@ -13,9 +12,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Bars, Donut } from '@/components/charts';
 import { completionTrend, useWorkspaceStore } from './store';
-import { useNotesStore } from '@/features/notes/store';
 import { useExpenseStore } from '@/features/expenses/store';
-import { minutesOnCstDay, useFocusStore } from '@/features/focus/store';
 import { cstMonthRange } from '@/lib/time';
 import { PRIORITY_COLOR, PRIORITY_LABEL, STATUS_LABEL } from './types';
 
@@ -34,9 +31,7 @@ const ROLE_TEXT: Record<string, string> = { owner: '创建者', admin: '管理�
 export function OverviewPage() {
   const navigate = useNavigate();
   const { tasks, members, activities } = useWorkspaceStore();
-  const notes = useNotesStore((s) => s.notes);
   const expenses = useExpenseStore((s) => s.expenses);
-  const focusSessions = useFocusStore((s) => s.sessions);
 
   const stats = useMemo(() => {
     const done = tasks.filter((task) => task.status === 'done').length;
@@ -54,7 +49,12 @@ export function OverviewPage() {
   }, [tasks]);
 
   const trend = useMemo(() => completionTrend(tasks, 7), [tasks]);
-  const todayFocus = useMemo(() => minutesOnCstDay(focusSessions), [focusSessions]);
+  // 近 7 天完成数：小组指标，跟个人专注/笔记无关
+  const weekDone = useMemo(
+    () => tasks.filter((task) => task.status === 'done' && task.completedAt && task.completedAt >= Date.now() - 6 * 86_400_000).length,
+    [tasks],
+  );
+
   // 本月支出按北京时间的自然月切分，不受浏览器时区影响
   const monthSpend = useMemo(() => {
     const { start, end } = cstMonthRange();
@@ -107,7 +107,7 @@ export function OverviewPage() {
             项目概览
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            小组共享数据，存服务端
+            当前小组的数据，存服务端
           </Typography.Paragraph>
         </div>
         <Button type="primary" icon={<RobotOutlined />} onClick={askAi}>
@@ -120,9 +120,9 @@ export function OverviewPage() {
           { title: '任务总数', value: stats.total, suffix: '个', icon: <ClockCircleOutlined />, tone: '' },
           { title: '完成率', value: stats.rate, suffix: '%', icon: <ArrowUpOutlined />, tone: 'green' },
           { title: '已逾期', value: stats.overdue, suffix: '个', icon: <WarningOutlined />, tone: 'red' },
-          { title: '今日专注', value: todayFocus, suffix: '分钟', icon: <FieldTimeOutlined />, tone: 'blue' },
+          { title: '近 7 天完成', value: weekDone, suffix: '个', icon: <CheckCircleOutlined />, tone: 'blue' },
           { title: '本月支出', value: (monthSpend / 100).toFixed(2), suffix: '元', icon: <WalletOutlined />, tone: '' },
-          { title: '笔记', value: notes.length, suffix: '篇', icon: <FileTextOutlined />, tone: '' },
+          { title: '成员', value: members.length, suffix: '人', icon: <FileTextOutlined />, tone: '' },
         ].map((item) => (
           <Col xs={12} sm={8} lg={4} key={item.title}>
             <Card size="small" className="stat-card" data-tone={item.tone}>
