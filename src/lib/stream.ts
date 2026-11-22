@@ -1,4 +1,4 @@
-import { env } from '@/env';
+import { apiFetch } from './api';
 import { createSSEParser } from './sse';
 
 export interface ChatMessage {
@@ -35,7 +35,7 @@ export async function streamChat({ messages, onDelta, signal, model }: StreamPar
   let chunks = 0;
   let usage: StreamStats['usage'];
 
-  const response = await fetch(`${env.apiBase}/chat/stream`, {
+  const response = await apiFetch('/chat/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ messages, model }),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { env } from '@/env';
+import { apiFetch } from './api';
 
 export interface Health {
   status: string;
@@ -20,7 +20,7 @@ export function useHealth(): Health {
   useEffect(() => {
     if (cached) return;
     let alive = true;
-    fetch(`${env.apiBase}/health`)
+    apiFetch('/health')
       .then((res) => res.json())
       .then((data: Health) => {
         cached = data;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { env } from '@/env';
+import { apiFetch } from '@/lib/api';
 
 /**
  * 生成式 UI 的「契约」。
@@ -139,7 +139,7 @@ export function mockSpec(prompt: string): UISpec {
 
 /** 请求服务端生成 Schema：真模型或 mock 由服务端决定，前端只负责校验。 */
 export async function generateSpec(prompt: string, signal?: AbortSignal, model?: string): Promise<UISpec> {
-  const response = await fetch(`${env.apiBase}/generate/ui`, {
+  const response = await apiFetch('/generate/ui', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, model }),

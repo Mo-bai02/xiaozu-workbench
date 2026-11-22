@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { env } from '@/env';
+import { apiFetch } from './api';
 
 export interface ModelOption {
   id: string;
@@ -22,7 +22,7 @@ export function useModels(): ModelOption[] {
   useEffect(() => {
     if (cache) return;
     let alive = true;
-    fetch(`${env.apiBase}/models`)
+    apiFetch('/models')
       .then((res) => res.json())
       .then((data: { models: ModelOption[] }) => {
         cache = data.models ?? [];

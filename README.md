@@ -74,7 +74,14 @@ SSE 逐字输出、Markdown 实时渲染、代码块复制、停止生成、**�
 可以直接提交，也可以展开看模型返回的原始 JSON。
 
 ### 3. 调用日志 `/logs`
-后台列表页该有的都有：统计卡片、搜索、筛选、排序、分页、状态标签、详情抽屉、成本估算。
+记录**真实请求**：模型、类型、Tokens、延迟、状态、提问与回答（截断）。
+
+**按访客隔离**：前端首次打开生成一个 `visitorId` 存 localStorage，每个请求带 `X-Visitor-Id`；服务端按它分组存日志，`GET /api/logs` 只返回自己的。
+所以你把项目内网穿透发给别人，他们看到的是**自己的**调用记录。
+
+> 两个已知边界，写在这里免得被当成 bug：
+> - 日志存在内存里，**服务重启即清空**（要持久化就换 SQLite）；
+> - `visitorId` 不是鉴权——知道别人的 id 就能看到别人的日志。真隔离需要登录。
 
 ---
 
@@ -172,6 +179,7 @@ server/index.mjs  →  有 LLM_API_KEY ? 转发给上游 : 内置 mock（仍然�
 - **watch 忽略缓存目录**：避免浏览器缓存文件被锁导致 dev server `EBUSY` 崩掉
 - **质量**：ESLint 9 flat config + Prettier + `tsc --noEmit`（strict，含 `noUncheckedIndexedAccess`）
 - **测试**：Vitest + jsdom，25 个用例覆盖协议解析 / Markdown 补全 / Schema 校验
+- **限流**：按访客每分钟 30 次，内网穿透后防止别人刷你的 Key
 - **CI**：GitHub Actions（lint → typecheck → test → build）双 Node 矩阵
 - **部署**：多阶段 Dockerfile + nginx（SPA fallback、gzip、静态资源长缓存）
 
