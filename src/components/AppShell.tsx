@@ -4,13 +4,16 @@ import { Button, Drawer, Grid, Layout, Menu, Select, Space, Tag, Tooltip, Typogr
 import {
   BulbFilled,
   BulbOutlined,
+  DashboardOutlined,
   ExperimentOutlined,
   GithubOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
   MessageOutlined,
+  ProjectOutlined,
   TableOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { env } from '@/env';
 import { useHealth } from '@/lib/health';
@@ -20,9 +23,17 @@ import { useUIStore } from '@/store/ui';
 const { Header, Sider, Content } = Layout;
 
 const NAV = [
-  { key: '/chat', icon: <MessageOutlined />, label: '流式对话' },
-  { key: '/generator', icon: <ExperimentOutlined />, label: '生成式 UI' },
-  { key: '/logs', icon: <TableOutlined />, label: '调用日志' },
+  { key: '/overview', icon: <DashboardOutlined />, label: '项目概览' },
+  { key: '/board', icon: <ProjectOutlined />, label: '任务看板' },
+  { key: '/members', icon: <TeamOutlined />, label: '成员管理' },
+  { key: '/chat', icon: <MessageOutlined />, label: '智能助手' },
+  { key: '/generator', icon: <ExperimentOutlined />, label: '表单生成' },
+  { key: '/logs', icon: <TableOutlined />, label: 'AI 调用记录' },
+];
+
+const MENU_ITEMS = [
+  { type: 'group' as const, label: '工作台', children: NAV.slice(0, 3) },
+  { type: 'group' as const, label: 'AI 能力', children: NAV.slice(3) },
 ];
 
 export function AppShell() {
@@ -44,14 +55,14 @@ export function AppShell() {
 
   const selectedKey = useMemo(() => {
     const match = NAV.find((item) => location.pathname.startsWith(item.key));
-    return match?.key ?? '/chat';
+    return match?.key ?? '/overview';
   }, [location.pathname]);
 
   const menu = (
     <Menu
       mode="inline"
       selectedKeys={[selectedKey]}
-      items={NAV}
+      items={MENU_ITEMS}
       onClick={({ key }) => {
         navigate(key);
         setDrawerOpen(false);

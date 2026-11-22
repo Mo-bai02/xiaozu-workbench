@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "AI Console —— 流式对话 / 生成式 UI / 调用日志，一个可直接演示的 AI 前端工作台",
+  "description": "工作台：项目概览 / 任务看板 / 成员管理 + AI 助手（流式对话、表单生成、调用记录）",
   "scripts": {
     "dev": "concurrently -n api,web -c magenta,cyan \"npm:api\" \"vite\"",
     "build": "tsc --noEmit && vite build",
@@ -23,7 +23,8 @@
     "react-dom": "18.3.1",
     "react-router-dom": "6.26.2",
     "zod": "3.23.8",
-    "zustand": "4.5.5"
+    "zustand": "4.5.5",
+    "dayjs": "1.11.13"
   },
   "devDependencies": {
     "@eslint/js": "9.10.0",

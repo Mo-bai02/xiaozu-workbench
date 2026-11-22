@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Avatar, Button, Empty, Input, Segmented, Space, Tooltip, Typography } from 'antd';
+import {
+  Alert,
+  Avatar,
+  Button,
+  Drawer,
+  Empty,
+  Grid,
+  Input,
+  Segmented,
+  Space,
+  Tooltip,
+  Typography,
+} from 'antd';
 import {
   ClearOutlined,
   CopyOutlined,
   DownOutlined,
+  DownloadOutlined,
+  HistoryOutlined,
   ReloadOutlined,
   RobotOutlined,
   SendOutlined,
@@ -15,8 +29,10 @@ import { DynamicIsland } from '@/components/DynamicIsland';
 import { FloatingBall } from '@/components/FloatingBall';
 import { Markdown } from '@/components/Markdown';
 import { formatMs, formatNumber } from '@/lib/utils';
+import { useSessionStore } from '@/store/sessions';
 import { useUIStore } from '@/store/ui';
 import { useChat, type ChatItem, type RenderStrategy } from './useChat';
+import { SessionRail } from './SessionRail';
 
 const SUGGESTIONS = [
   '用 React 写一个防抖 hook，并说明常见的坑',
@@ -107,17 +123,46 @@ function Bubble({ item, isLast, onRegenerate }: BubbleProps) {
 }
 
 export function ChatPage() {
-  const { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, clear } = useChat();
+  const { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, loadMessages } =
+    useChat();
+
+  const sessions = useSessionStore((s) => s.sessions);
+  const activeId = useSessionStore((s) => s.activeId);
+  const createSession = useSessionStore((s) => s.create);
+  const selectSession = useSessionStore((s) => s.select);
+  const removeSession = useSessionStore((s) => s.remove);
+  const updateMessages = useSessionStore((s) => s.updateMessages);
+
+  const screens = Grid.useBreakpoint();
+  const isNarrow = !screens.xl;
+  const [railOpen, setRailOpen] = useState(false);
   const [input, setInput] = useState('');
   const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const demoStarted = useRef(false);
+  const booted = useRef(false);
   const toggleDark = useUIStore((s) => s.toggleDark);
 
+  const activeSession = sessions.find((s) => s.id === activeId);
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
   const lastAssistantId = lastAssistant?.id;
   const lastContent = messages[messages.length - 1]?.content ?? '';
+
+  // 首次进入：把当前会话的历史灌回对话框
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    const session = useSessionStore.getState().sessions.find((s) => s.id === useSessionStore.getState().activeId);
+    if (session?.messages.length) loadMessages(session.messages);
+  }, [loadMessages]);
+
+  // 会话保存：流式过程中不写盘，结束后 400ms 落一次
+  useEffect(() => {
+    if (streaming || messages.length === 0) return;
+    const timer = window.setTimeout(() => updateMessages(activeId, messages), 400);
+    return () => window.clearTimeout(timer);
+  }, [messages, streaming, activeId, updateMessages]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const el = scrollRef.current;
@@ -133,12 +178,18 @@ export function ChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [lastContent, messages.length]);
 
-  // ?demo=1：打开即自动跑一段回答，方便录屏 / 截图 / 面试演示
+  // 支持两种入口：
+  // ?demo=1  —— 打开即跑一段示例，方便录屏 / 截图
+  // ?ask=...  —— 从看板、概览跳过来时预填问题（跨模块联动的关键）
   useEffect(() => {
     if (demoStarted.current) return;
-    if (new URLSearchParams(window.location.search).get('demo') !== '1') return;
+    const params = new URLSearchParams(window.location.search);
+    const ask = params.get('ask');
+    const demo = params.get('demo') === '1';
+    if (!ask && !demo) return;
     demoStarted.current = true;
-    void send('SSE 流式渲染为什么要用 requestAnimationFrame 批量更新？');
+    window.history.replaceState({}, '', '/chat');
+    void send(ask ?? 'SSE 流式渲染为什么要用 requestAnimationFrame 批量更新？');
   }, [send]);
 
   const onScroll = () => {
@@ -157,120 +208,195 @@ export function ChatPage() {
     setAtBottom(true);
   };
 
+  const switchTo = (id: string) => {
+    if (id === activeId || streaming) return;
+    updateMessages(activeId, messages);
+    selectSession(id);
+    const target = sessions.find((s) => s.id === id);
+    loadMessages(target?.messages ?? []);
+    setRailOpen(false);
+  };
+
+  const newChat = () => {
+    if (streaming) return;
+    updateMessages(activeId, messages);
+    createSession();
+    loadMessages([]);
+    setRailOpen(false);
+    setInput('');
+  };
+
+  const deleteChat = (id: string) => {
+    const remaining = sessions.filter((s) => s.id !== id);
+    const wasActive = id === activeId;
+    removeSession(id);
+    if (wasActive) loadMessages(remaining[0]?.messages ?? []);
+  };
+
+  const exportMarkdown = () => {
+    if (messages.length === 0) return;
+    const body = messages
+      .map((m) => `## ${m.role === 'user' ? '我' : 'Assistant'}\n\n${m.content}`)
+      .join('\n\n---\n\n');
+    const markdown = `# ${activeSession?.title ?? '对话记录'}\n\n> 导出自 AI Console · ${new Date().toLocaleString('zh-CN')}\n\n${body}\n`;
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(activeSession?.title ?? '对话').replace(/[\\/:*?"<>|]/g, '_')}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const rail = (
+    <SessionRail disabled={streaming} onSwitch={switchTo} onNew={newChat} onDelete={deleteChat} />
+  );
+
   return (
-    <div className="chat-page">
-      <DynamicIsland
-        streaming={streaming}
-        status={lastAssistant?.status}
-        metrics={metrics}
-        error={lastAssistant?.error}
-        onStop={stop}
-        onRetry={regenerate}
-      />
+    <div className="chat-layout">
+      {!isNarrow && rail}
 
-      <div className="metrics-bar">
-        <Space size={8} wrap>
-          <span className="metric">
-            <ThunderboltOutlined /> 首字延迟 <b>{formatMs(metrics.ttftMs)}</b>
-          </span>
-          <span className="metric">
-            字符 <b>{formatNumber(metrics.chars)}</b>
-          </span>
-          <span className="metric">
-            React 渲染 <b>{formatNumber(metrics.renders)}</b> 次
-          </span>
-        </Space>
+      <div className="chat-page">
+        <DynamicIsland
+          streaming={streaming}
+          status={lastAssistant?.status}
+          metrics={metrics}
+          error={lastAssistant?.error}
+          onStop={stop}
+          onRetry={regenerate}
+        />
 
-        <Tooltip title="同一个回答，两种更新策略的渲染次数对比。逐 token 模式会明显更卡。">
-          <Segmented
-            size="small"
-            value={strategy}
-            onChange={(value) => setStrategy(value as RenderStrategy)}
-            options={[
-              { label: 'rAF 批量', value: 'raf' },
-              { label: '逐 token', value: 'per-token' },
-            ]}
-          />
-        </Tooltip>
-      </div>
+        <div className="metrics-bar">
+          <Space size={8} wrap>
+            {isNarrow && (
+              <Button size="small" icon={<HistoryOutlined />} onClick={() => setRailOpen(true)}>
+                会话
+              </Button>
+            )}
+            <span className="metric">
+              <ThunderboltOutlined /> 首字延迟 <b>{formatMs(metrics.ttftMs)}</b>
+            </span>
+            <span className="metric">
+              字符 <b>{formatNumber(metrics.chars)}</b>
+            </span>
+            <span className="metric">
+              React 渲染 <b>{formatNumber(metrics.renders)}</b> 次
+            </span>
+          </Space>
 
-      <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
-        {messages.length === 0 ? (
-          <div className="chat-empty">
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span>
-                  问点什么吧 —— 回答会流式输出，顶部胶囊会实时告诉你进度
-                  <br />
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    右下角悬浮球可以拖动，点开有快捷操作
-                  </Typography.Text>
-                </span>
-              }
-            />
-            <div className="suggestions">
-              {SUGGESTIONS.map((text) => (
-                <button key={text} type="button" className="suggestion" onClick={() => void send(text)}>
-                  {text}
-                </button>
+          <Space size={8}>
+            <Tooltip title="把当前对话导出为 Markdown 文件">
+              <Button
+                size="small"
+                type="text"
+                icon={<DownloadOutlined />}
+                onClick={exportMarkdown}
+                disabled={messages.length === 0}
+              />
+            </Tooltip>
+            <Tooltip title="同一个回答，两种更新策略的渲染次数对比。逐 token 模式会明显更卡。">
+              <Segmented
+                size="small"
+                value={strategy}
+                onChange={(value) => setStrategy(value as RenderStrategy)}
+                options={[
+                  { label: 'rAF 批量', value: 'raf' },
+                  { label: '逐 token', value: 'per-token' },
+                ]}
+              />
+            </Tooltip>
+          </Space>
+        </div>
+
+        <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
+          {messages.length === 0 ? (
+            <div className="chat-empty">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <span>
+                    问点什么吧 —— 回答会流式输出，顶部胶囊会实时告诉你进度
+                    <br />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      左侧是会话列表，右键可以重命名或删除
+                    </Typography.Text>
+                  </span>
+                }
+              />
+              <div className="suggestions">
+                {SUGGESTIONS.map((text) => (
+                  <button key={text} type="button" className="suggestion" onClick={() => void send(text)}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="msg-list">
+              {messages.map((item) => (
+                <Bubble
+                  key={item.id}
+                  item={item}
+                  isLast={item.id === lastAssistantId}
+                  onRegenerate={regenerate}
+                />
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="msg-list">
-            {messages.map((item) => (
-              <Bubble
-                key={item.id}
-                item={item}
-                isLast={item.id === lastAssistantId}
-                onRegenerate={regenerate}
-              />
-            ))}
-          </div>
+          )}
+        </div>
+
+        {!atBottom && messages.length > 0 && (
+          <button type="button" className="to-bottom" onClick={() => scrollToBottom()}>
+            <DownOutlined /> 最新
+          </button>
         )}
-      </div>
 
-      {!atBottom && messages.length > 0 && (
-        <button type="button" className="to-bottom" onClick={() => scrollToBottom()}>
-          <DownOutlined /> 最新
-        </button>
-      )}
+        <div className="composer">
+          <Input.TextArea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onPressEnter={(e) => {
+              if (!e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            autoSize={{ minRows: 1, maxRows: 5 }}
+            placeholder="输入问题，Enter 发送"
+            disabled={streaming}
+            className="composer-input"
+          />
+          {streaming ? (
+            <Button danger icon={<StopOutlined />} onClick={stop}>
+              停止
+            </Button>
+          ) : (
+            <Button type="primary" icon={<SendOutlined />} onClick={submit} disabled={!input.trim()}>
+              发送
+            </Button>
+          )}
+          <Tooltip title="新建会话">
+            <Button icon={<ClearOutlined />} onClick={newChat} disabled={streaming} />
+          </Tooltip>
+        </div>
 
-      <div className="composer">
-        <Input.TextArea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onPressEnter={(e) => {
-            if (!e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          autoSize={{ minRows: 1, maxRows: 5 }}
-          placeholder="输入问题，Enter 发送"
-          disabled={streaming}
-          className="composer-input"
+        <FloatingBall
+          onNewChat={newChat}
+          onScrollBottom={() => scrollToBottom()}
+          onToggleTheme={toggleDark}
         />
-        {streaming ? (
-          <Button danger icon={<StopOutlined />} onClick={stop}>
-            停止
-          </Button>
-        ) : (
-          <Button type="primary" icon={<SendOutlined />} onClick={submit} disabled={!input.trim()}>
-            发送
-          </Button>
-        )}
-        <Tooltip title="清空对话">
-          <Button icon={<ClearOutlined />} onClick={clear} disabled={streaming || messages.length === 0} />
-        </Tooltip>
       </div>
 
-      <FloatingBall
-        onNewChat={clear}
-        onScrollBottom={() => scrollToBottom()}
-        onToggleTheme={toggleDark}
-      />
+      <Drawer
+        open={railOpen}
+        onClose={() => setRailOpen(false)}
+        placement="left"
+        width={260}
+        title="会话"
+        styles={{ body: { padding: 0 } }}
+      >
+        {rail}
+      </Drawer>
     </div>
   );
 }

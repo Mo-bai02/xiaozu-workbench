@@ -10,6 +10,9 @@ import { useUIStore } from '@/store/ui';
  * 这是"脚手架"该给的默认值 —— 新页面只要 lazy 一下，就自动拆包。
  */
 const ChatPage = lazy(() => import('@/features/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
+const OverviewPage = lazy(() => import('@/features/workspace/OverviewPage').then((m) => ({ default: m.OverviewPage })));
+const BoardPage = lazy(() => import('@/features/workspace/BoardPage').then((m) => ({ default: m.BoardPage })));
+const MembersPage = lazy(() => import('@/features/workspace/MembersPage').then((m) => ({ default: m.MembersPage })));
 const GeneratorPage = lazy(() =>
   import('@/features/generator/GeneratorPage').then((m) => ({ default: m.GeneratorPage })),
 );
@@ -55,11 +58,14 @@ export function App() {
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route element={<AppShell />}>
-              <Route path="/" element={<Navigate to="/chat" replace />} />
+              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/overview" element={<OverviewPage />} />
+              <Route path="/board" element={<BoardPage />} />
+              <Route path="/members" element={<MembersPage />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/generator" element={<GeneratorPage />} />
               <Route path="/logs" element={<LogsPage />} />
-              <Route path="*" element={<Navigate to="/chat" replace />} />
+              <Route path="*" element={<Navigate to="/overview" replace />} />
             </Route>
           </Routes>
         </Suspense>

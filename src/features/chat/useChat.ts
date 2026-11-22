@@ -203,6 +203,16 @@ export function useChat() {
     setMetrics(EMPTY_METRICS);
   }, [streaming]);
 
+  /** 切换到另一个会话时，把历史消息灌进来（不动正在跑的流） */
+  const loadMessages = useCallback(
+    (items: ChatItem[]) => {
+      if (streaming) return;
+      setMessages(items);
+      setMetrics(EMPTY_METRICS);
+    },
+    [streaming],
+  );
+
   /**
    * 只在页面真正卸载时中断请求，而**不在组件卸载时**中断。
    * 原因：React StrictMode 在开发环境会「挂载 → 卸载 → 再挂载」，
@@ -214,5 +224,5 @@ export function useChat() {
     return () => window.removeEventListener('pagehide', onPageHide);
   }, []);
 
-  return { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, clear };
+  return { messages, streaming, metrics, strategy, setStrategy, send, regenerate, stop, clear, loadMessages };
 }
