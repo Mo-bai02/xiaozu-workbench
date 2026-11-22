@@ -253,6 +253,30 @@ tests/                         Vitest 用例
 - 弹窗分两块：**今天到期与逾期**、**我标记的重点**，每条都带小组名和执行人，点一下直接跳到那个小组的看板
 - 每个小组卡片上有红黄绿灯：红=有逾期、黄=今天到期、绿=正常、灰=空组
 
+## 常见问题
+
+**Windows 上 `npm run build` 报 `[vite:esbuild-transpile] remove ... Access is denied`**
+
+esbuild 会在系统临时目录解压一个二进制文件，被安全软件或权限策略卡住时删不掉，构建就失败。
+项目的 npm 脚本已经统一走 `scripts/run-with-local-tmp.mjs`，把 TEMP/TMP 指到仓库里的 `.cache/tmp`，正常不会再遇到。
+如果仍然报错，说明连项目目录也不让写，手动指定一个可写目录：
+
+```powershell
+$env:TEMP="D:\tmp"; $env:TMP="D:\tmp"; npm run build
+```
+
+**`npm run dev` 后 127.0.0.1:5173 打不开，但 localhost:5173 可以**
+
+Vite 默认只监听 `localhost`（Windows 上解析到 `::1`）。想用 IP 访问加 `--host`：
+
+```powershell
+node scripts/run-with-local-tmp.mjs vite --host 0.0.0.0
+```
+
+**改了 `.env` 不生效**
+
+`.env` 只在 Node 进程启动时读一次，改完要重启 `npm run dev`（或 `node server/index.mjs`）。
+
 ## 给别人用（内网穿透）
 
 先把项目跑成**单端口生产模式**，不要直接把 Vite 开发服务器（5173）暴露出去：

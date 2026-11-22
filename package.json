@@ -5,13 +5,13 @@
   "type": "module",
   "description": "工作台：项目概览 / 任务看板 / 成员管理 + AI 助手（流式对话、表单生成、调用记录）",
   "scripts": {
-    "dev": "concurrently -n api,web -c magenta,cyan \"npm:api\" \"vite\"",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm:api\" \"node scripts/run-with-local-tmp.mjs vite\"",
+    "build": "tsc --noEmit && node scripts/run-with-local-tmp.mjs vite build",
+    "preview": "node scripts/run-with-local-tmp.mjs vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "test": "vitest run",
+    "test": "node scripts/run-with-local-tmp.mjs vitest run",
     "api": "node server/index.mjs",
     "seed:demo": "node server/seed-demo.mjs"
   },
