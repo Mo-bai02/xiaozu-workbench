@@ -13,6 +13,9 @@ const ChatPage = lazy(() => import('@/features/chat/ChatPage').then((m) => ({ de
 const OverviewPage = lazy(() => import('@/features/workspace/OverviewPage').then((m) => ({ default: m.OverviewPage })));
 const BoardPage = lazy(() => import('@/features/workspace/BoardPage').then((m) => ({ default: m.BoardPage })));
 const MembersPage = lazy(() => import('@/features/workspace/MembersPage').then((m) => ({ default: m.MembersPage })));
+const NotesPage = lazy(() => import('@/features/notes/NotesPage').then((m) => ({ default: m.NotesPage })));
+const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
+const FocusPage = lazy(() => import('@/features/focus/FocusPage').then((m) => ({ default: m.FocusPage })));
 const GeneratorPage = lazy(() =>
   import('@/features/generator/GeneratorPage').then((m) => ({ default: m.GeneratorPage })),
 );
@@ -62,6 +65,9 @@ export function App() {
               <Route path="/overview" element={<OverviewPage />} />
               <Route path="/board" element={<BoardPage />} />
               <Route path="/members" element={<MembersPage />} />
+              <Route path="/notes" element={<NotesPage />} />
+              <Route path="/expenses" element={<ExpensesPage />} />
+              <Route path="/focus" element={<FocusPage />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/generator" element={<GeneratorPage />} />
               <Route path="/logs" element={<LogsPage />} />

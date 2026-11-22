@@ -4,13 +4,18 @@ import {
   ArrowUpOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  FireOutlined,
+  FileTextOutlined,
+  FieldTimeOutlined,
   RobotOutlined,
+  WalletOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Bars, Donut } from '@/components/charts';
 import { completionTrend, useWorkspaceStore } from './store';
+import { useNotesStore } from '@/features/notes/store';
+import { useExpenseStore } from '@/features/expenses/store';
+import { minutesOnDay, useFocusStore } from '@/features/focus/store';
 import { PRIORITY_COLOR, PRIORITY_LABEL, STATUS_LABEL } from './types';
 
 const DAY = 86_400_000;
@@ -26,6 +31,9 @@ function relativeTime(ts: number): string {
 export function OverviewPage() {
   const navigate = useNavigate();
   const { tasks, members, activities } = useWorkspaceStore();
+  const notes = useNotesStore((s) => s.notes);
+  const expenses = useExpenseStore((s) => s.expenses);
+  const focusSessions = useFocusStore((s) => s.sessions);
 
   const stats = useMemo(() => {
     const done = tasks.filter((task) => task.status === 'done').length;
@@ -43,6 +51,16 @@ export function OverviewPage() {
   }, [tasks]);
 
   const trend = useMemo(() => completionTrend(tasks, 7), [tasks]);
+  const todayFocus = useMemo(() => minutesOnDay(focusSessions, new Date()), [focusSessions]);
+  const monthSpend = useMemo(() => {
+    const now = new Date();
+    return expenses
+      .filter((expense) => {
+        const d = new Date(expense.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, expense) => sum + expense.amount, 0);
+  }, [expenses]);
 
   const statusSlices = useMemo(
     () => [
@@ -100,10 +118,12 @@ export function OverviewPage() {
         {[
           { title: '任务总数', value: stats.total, suffix: '个', icon: <ClockCircleOutlined />, tone: '' },
           { title: '完成率', value: stats.rate, suffix: '%', icon: <ArrowUpOutlined />, tone: 'green' },
-          { title: '进行中', value: stats.doing, suffix: '个', icon: <FireOutlined />, tone: 'blue' },
           { title: '已逾期', value: stats.overdue, suffix: '个', icon: <WarningOutlined />, tone: 'red' },
+          { title: '今日专注', value: todayFocus, suffix: '分钟', icon: <FieldTimeOutlined />, tone: 'blue' },
+          { title: '本月支出', value: (monthSpend / 100).toFixed(2), suffix: '元', icon: <WalletOutlined />, tone: '' },
+          { title: '笔记', value: notes.length, suffix: '篇', icon: <FileTextOutlined />, tone: '' },
         ].map((item) => (
-          <Col xs={12} md={6} key={item.title}>
+          <Col xs={12} sm={8} lg={4} key={item.title}>
             <Card size="small" className="stat-card" data-tone={item.tone}>
               <div className="stat-head">
                 <span className="stat-title">{item.title}</span>

@@ -6,6 +6,9 @@ import {
   BulbOutlined,
   DashboardOutlined,
   ExperimentOutlined,
+  FileTextOutlined,
+  WalletOutlined,
+  ClockCircleOutlined,
   GithubOutlined,
   MenuFoldOutlined,
   MenuOutlined,
@@ -26,14 +29,17 @@ const NAV = [
   { key: '/overview', icon: <DashboardOutlined />, label: '项目概览' },
   { key: '/board', icon: <ProjectOutlined />, label: '任务看板' },
   { key: '/members', icon: <TeamOutlined />, label: '成员管理' },
+  { key: '/notes', icon: <FileTextOutlined />, label: '笔记' },
+  { key: '/expenses', icon: <WalletOutlined />, label: '经费账本' },
+  { key: '/focus', icon: <ClockCircleOutlined />, label: '专注计时' },
   { key: '/chat', icon: <MessageOutlined />, label: '智能助手' },
   { key: '/generator', icon: <ExperimentOutlined />, label: '表单生成' },
   { key: '/logs', icon: <TableOutlined />, label: 'AI 调用记录' },
 ];
 
 const MENU_ITEMS = [
-  { type: 'group' as const, label: '工作台', children: NAV.slice(0, 3) },
-  { type: 'group' as const, label: 'AI 能力', children: NAV.slice(3) },
+  { type: 'group' as const, label: '工作台', children: NAV.slice(0, 6) },
+  { type: 'group' as const, label: 'AI 能力', children: NAV.slice(6) },
 ];
 
 export function AppShell() {

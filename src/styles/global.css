@@ -1417,3 +1417,268 @@ body {
     opacity: 1;
   }
 }
+
+
+/* ================= 笔记 ================= */
+
+.notes-layout {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.notes-list {
+  min-height: 520px;
+}
+
+.note-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.note-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.note-item:hover {
+  background: var(--bg);
+}
+
+.note-item.is-active {
+  background: var(--accent-soft);
+  border-color: #cfdcff;
+}
+
+.note-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.note-item-top .pin {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.note-item-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note-item-time {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.note-item-excerpt {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note-item-tags {
+  margin-top: 4px;
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.notes-editor {
+  min-height: 520px;
+}
+
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.note-title-input {
+  flex: 1;
+  min-width: 160px;
+  font-size: 16px;
+  font-weight: 600;
+  padding-left: 0;
+}
+
+.save-hint {
+  font-size: 11px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.note-body-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  border: none;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+.note-preview {
+  min-height: 380px;
+}
+
+/* ================= 经费 ================= */
+
+.settle-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settle-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+
+.settle-list li:last-child {
+  border-bottom: none;
+}
+
+.settle-from {
+  color: #e5484d;
+  font-weight: 600;
+}
+
+.settle-arrow {
+  color: var(--muted);
+}
+
+.settle-to {
+  color: #0f9d58;
+  font-weight: 600;
+}
+
+.settle-list b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ================= 专注 ================= */
+
+.focus-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 16px 20px;
+}
+
+.focus-ring {
+  position: relative;
+  width: 240px;
+  height: 240px;
+}
+
+.focus-ring-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.focus-time {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.focus-time span {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.focus-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.focus-task {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.focus-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.focus-log li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12.5px;
+}
+
+.focus-log li:last-child {
+  border-bottom: none;
+}
+
+.focus-log-time {
+  color: var(--muted);
+  font-size: 11.5px;
+  flex: none;
+}
+
+.focus-log-task {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .notes-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .note-items {
+    max-height: 240px;
+  }
+}
