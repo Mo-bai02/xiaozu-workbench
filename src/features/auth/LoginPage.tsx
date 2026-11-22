@@ -101,10 +101,10 @@ export function LoginPage() {
 
       const name = useAuthStore.getState().user?.displayName ?? '';
       setEntering(name);
-      // 过场放慢一点，给动画留出呼吸
+      // 动画主体 1.15s 左右收尾，1.2s 就走，不留空等
       window.setTimeout(() => {
         navigate(hasGroup ? '/overview' : '/groups', { replace: true });
-      }, 1600);
+      }, 1200);
     } catch {
       // 验证码一次性，失败后换一张，避免用户对着同一个死码反复输
       if (mode === 'register') void loadCaptcha();

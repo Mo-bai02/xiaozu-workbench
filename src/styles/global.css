@@ -2598,11 +2598,11 @@ html[data-theme='dark'] .alert-banner {
   height: 120px;
   border-radius: 50%;
   border: 2px solid rgba(59, 110, 246, 0.6);
-  animation: ringOut 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: ringOut 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .enter-ring-delay {
-  animation-delay: 0.3s;
+  animation-delay: 0.2s;
   border-color: rgba(124, 92, 255, 0.45);
 }
 
