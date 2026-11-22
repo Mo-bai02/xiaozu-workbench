@@ -13,6 +13,7 @@ import {
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
+  SearchOutlined,
   MessageOutlined,
   ProjectOutlined,
   SettingOutlined,
@@ -20,6 +21,7 @@ import {
   TeamOutlined,
 } from '@ant-design/icons';
 import { env } from '@/env';
+import { CommandPalette, SHORTCUT_LABEL } from '@/components/CommandPalette';
 import { useHealth } from '@/lib/health';
 import { useModels, type ModelOption } from '@/lib/models';
 import { useUIStore } from '@/store/ui';
@@ -60,6 +62,7 @@ export function AppShell() {
   const models = useModels();
   const modelId = useUIStore((s) => s.modelId);
   const setModelId = useUIStore((s) => s.setModelId);
+  const setPaletteOpen = useUIStore((s) => s.setPaletteOpen);
   const activeModel = models.find((m) => m.id === modelId) ?? models[0];
 
   const selectedKey = useMemo(() => {
@@ -129,6 +132,16 @@ export function AppShell() {
           </Space>
 
           <Space size={8}>
+            <Tooltip title={SHORTCUT_LABEL + ' 打开命令面板'}>
+              <Button
+                size="small"
+                type="text"
+                icon={<SearchOutlined />}
+                onClick={() => setPaletteOpen(true)}
+              >
+                <span className="palette-kbd">{SHORTCUT_LABEL}</span>
+              </Button>
+            </Tooltip>
             <Select
               size="small"
               aria-label="选择模型"
@@ -202,6 +215,8 @@ export function AppShell() {
           <Outlet />
         </Content>
       </Layout>
+
+      <CommandPalette />
 
       <Drawer
         open={drawerOpen}

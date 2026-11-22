@@ -34,7 +34,7 @@ function seed(): { members: Member[]; tasks: Task[]; activities: Activity[] } {
   const raw: Array<[string, TaskStatus, Priority, string, string, number | null]> = [
     ['接入模型切换与供应商注册表', 'done', 'high', 'm1', '已支持 DeepSeek / 百炼 / 硅基流动', 1],
     ['会话列表本地持久化', 'done', 'mid', 'm1', '刷新不丢历史，最多保留 20 个会话', 1],
-    ['命令面板（⌘K）', 'doing', 'high', 'm1', '键盘导航 + 模糊搜索', 2],
+    ['命令面板', 'doing', 'high', 'm1', 'Ctrl K 唤起，支持搜索与键盘导航', 2],
     ['任务看板拖拽交互', 'doing', 'mid', 'm1', '三列之间拖拽，落点高亮', 3],
     ['成员批量操作', 'todo', 'low', 'm1', '多选删除、状态筛选', -2],
     ['数据看板图表', 'todo', 'mid', 'm4', '手写 SVG，不引图表库', 4],
@@ -77,7 +77,12 @@ function load(): { members: Member[]; tasks: Task[]; activities: Activity[] } {
       if (parsed.members?.length && Array.isArray(parsed.tasks)) {
         return {
           members: parsed.members,
-          tasks: parsed.tasks,
+          // 老数据里这条任务写的是 Mac 的 ⌘ 符号，这里做一次迁移，避免 Windows 用户看不懂
+          tasks: parsed.tasks.map((task) =>
+            task.title === '命令面板（⌘K）'
+              ? { ...task, title: '命令面板', desc: 'Ctrl K 唤起，支持搜索与键盘导航' }
+              : task,
+          ),
           activities: parsed.activities ?? [],
         };
       }

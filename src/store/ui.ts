@@ -5,11 +5,13 @@ type ThemeMode = 'light' | 'dark';
 interface UIState {
   dark: boolean;
   collapsed: boolean;
+  paletteOpen: boolean;
   /** 当前选中的模型 id；空串表示"跟随服务端默认" */
   modelId: string;
   toggleDark: () => void;
   setCollapsed: (value: boolean) => void;
   setModelId: (value: string) => void;
+  setPaletteOpen: (value: boolean) => void;
 }
 
 const THEME_KEY = 'ai-console:theme';
@@ -41,6 +43,7 @@ function initialDark(): boolean {
 export const useUIStore = create<UIState>((set) => ({
   dark: initialDark(),
   collapsed: false,
+  paletteOpen: false,
   modelId: read(MODEL_KEY) ?? '',
   toggleDark: () =>
     set((state) => {
@@ -54,4 +57,5 @@ export const useUIStore = create<UIState>((set) => ({
     write(MODEL_KEY, modelId);
     set({ modelId });
   },
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
 }));
