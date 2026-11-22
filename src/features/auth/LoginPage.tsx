@@ -51,10 +51,13 @@ export function LoginPage() {
   const register = useAuthStore((s) => s.register);
   const pending = useAuthStore((s) => s.pending);
   const error = useAuthStore((s) => s.error);
+  const user = useAuthStore((s) => s.user);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [captchaLoading, setCaptchaLoading] = useState(false);
   const [password, setPassword] = useState('');
+  /** 登录成功后的过场：先播 900ms 动画，再跳走 */
+  const [entering, setEntering] = useState<string | null>(null);
   const [form] = Form.useForm<LoginValues>();
 
   const loadCaptcha = useCallback(async () => {
@@ -74,6 +77,14 @@ export function LoginPage() {
     if (mode === 'register' && !captcha) void loadCaptcha();
   }, [mode, captcha, loadCaptcha]);
 
+  // ?enter=1 直接预览过场动画，方便调样式和截图
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('enter') !== '1') return;
+    setEntering(user?.displayName ?? '陈鹏宇');
+    const timer = window.setTimeout(() => setEntering(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [user?.displayName]);
+
   const submit = async (values: LoginValues) => {
     try {
       if (mode === 'login') {
@@ -87,7 +98,12 @@ export function LoginPage() {
 
       await useGroupStore.getState().fetchGroups();
       const hasGroup = useGroupStore.getState().groups.length > 0;
-      navigate(hasGroup ? '/overview' : '/groups', { replace: true });
+
+      const name = useAuthStore.getState().user?.displayName ?? '';
+      setEntering(name);
+      window.setTimeout(() => {
+        navigate(hasGroup ? '/overview' : '/groups', { replace: true });
+      }, 900);
     } catch {
       // 验证码一次性，失败后换一张，避免用户对着同一个死码反复输
       if (mode === 'register') void loadCaptcha();
@@ -95,7 +111,13 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-page">
+    <div className={entering === null ? 'auth-page' : 'auth-page is-entering'}>
+      <div className="auth-blobs" aria-hidden="true">
+        <span className="blob blob-1" />
+        <span className="blob blob-2" />
+        <span className="blob blob-3" />
+      </div>
+
       <div className="auth-brand">
         <span className="auth-logo">AI</span>
         <div>
@@ -108,7 +130,7 @@ export function LoginPage() {
         </div>
       </div>
 
-      <Card className="auth-card">
+      <Card className="auth-card auth-rise" style={{ animationDelay: '80ms' }}>
         <Segmented
           block
           value={mode}
@@ -222,7 +244,14 @@ export function LoginPage() {
             </>
           )}
 
-          <Button type="primary" htmlType="submit" block loading={pending} size="large">
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={pending}
+            size="large"
+            disabled={entering !== null}
+          >
             {mode === 'login' ? '登录' : '注册并进入'}
           </Button>
 
@@ -236,6 +265,17 @@ export function LoginPage() {
           )}
         </Form>
       </Card>
+
+      {entering !== null && (
+        <div className="enter-overlay" role="status" aria-live="polite">
+          <span className="enter-ring" />
+          <span className="enter-ring enter-ring-delay" />
+          <span className="enter-logo">AI</span>
+          <span className="enter-text">
+            欢迎回来{entering ? `，${entering}` : ''}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

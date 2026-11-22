@@ -301,7 +301,9 @@ async function liveChat(req, res, messages, model, record) {
     clearTimeout(timeout);
     const detail = await upstream.text().catch(() => '');
     record.status = 'failed';
-    record.error = `${provider.name} 返回 ${upstream.status}：${detail.slice(0, 200)}`;
+    // 上游的错误 JSON 不要原样丢给用户，先翻成人话；详细信息只留在服务端日志里
+    console.error(`[upstream] ${provider.name} ${upstream.status}:`, detail.slice(0, 500));
+    record.error = friendlyUpstreamError(provider.name, upstream.status);
     res.writeHead(upstream.status, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: record.error }));
     return;
