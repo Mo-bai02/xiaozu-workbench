@@ -11,6 +11,10 @@ export interface GroupSummary {
   role: Role;
   memberCount: number;
   openTasks: number;
+  overdue: number;
+  dueToday: number;
+  doneCount: number;
+  starred: number;
 }
 
 interface GroupState {

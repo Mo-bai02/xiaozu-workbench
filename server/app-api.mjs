@@ -32,6 +32,7 @@ import {
   listMembers,
   listTasks,
   membership,
+  myAlerts,
   publicUser,
   reminders,
   removeMember,
@@ -93,7 +94,7 @@ function requireManager(req, groupId) {
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 /** 本模块负责的路径前缀；其它 /api 路由（health、模型、日志、分享、对话）交给 index.mjs */
-const OWN_PREFIXES = ['/api/auth', '/api/notes', '/api/groups', '/api/tasks', '/api/expenses', '/api/focus', '/api/reminders'];
+const OWN_PREFIXES = ['/api/auth', '/api/notes', '/api/alerts', '/api/groups', '/api/tasks', '/api/expenses', '/api/focus', '/api/reminders'];
 
 export async function handleAppApi(req, res, url) {
   const path = url.pathname;
@@ -319,6 +320,12 @@ export async function handleAppApi(req, res, url) {
     }
 
     // ------------------------------------------------------------------ 提醒
+    if (path === '/api/alerts' && req.method === 'GET') {
+      const auth = requireUser(req);
+      if (auth.error) return bad(res, auth.error, auth.status), true;
+      return json(res, 200, myAlerts(auth.user.id)), true;
+    }
+
     if (path === '/api/reminders' && req.method === 'GET') {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;

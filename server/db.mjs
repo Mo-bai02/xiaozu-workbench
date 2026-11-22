@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_by   TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
   due_at       INTEGER,
-  completed_at INTEGER
+  completed_at INTEGER,
+  important    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -108,6 +109,13 @@ CREATE INDEX IF NOT EXISTS idx_members_user ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id, spent_at);
 CREATE INDEX IF NOT EXISTS idx_focus_user_day ON focus_sessions(user_id, ended_at);
 `);
+
+// 老库没有 important 列，启动时补一次（SQLite 不支持 IF NOT EXISTS 加列）
+try {
+  db.exec('ALTER TABLE tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0');
+} catch {
+  /* 已经有了 */
+}
 
 // ---------------------------------------------------------------------------
 // 时间：北京时间（UTC+8，无夏令时）
@@ -243,40 +251,7 @@ export function createGroup(userId, name) {
     'owner',
     ts,
   );
-  seedTasks(id, userId);
   return db.prepare('SELECT * FROM groups WHERE id = ?').get(id);
-}
-
-/** 新建小组时放几条示例任务，避免进去是一片空白 */
-function seedTasks(groupId, userId) {
-  const ts = now();
-  const { start } = cstDayRange(ts);
-  const rows = [
-    ['确定小组这学期的目标', 'done', 'high', start - 2 * DAY, ts - 2 * DAY],
-    ['分工：谁负责前端、谁负责文档', 'doing', 'mid', start, null],
-    ['提交第一版方案', 'todo', 'high', start + 2 * DAY, null],
-    ['整理上次会议纪要', 'todo', 'low', start - 1 * DAY, null],
-  ];
-  const insert = db.prepare(
-    `INSERT INTO tasks (id, group_id, title, description, status, priority, assignee_id, tags, created_by, created_at, due_at, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const [title, status, priority, dueAt, completedAt] of rows) {
-    insert.run(
-      uid('t'),
-      groupId,
-      title,
-      '',
-      status,
-      priority,
-      userId,
-      '[]',
-      userId,
-      ts,
-      dueAt,
-      completedAt,
-    );
-  }
 }
 
 export function membership(groupId, userId) {
@@ -290,17 +265,24 @@ export function membership(groupId, userId) {
 export const isManager = (role) => role === 'owner' || role === 'admin';
 
 export function listGroups(userId) {
+  const { start, end } = cstDayRange();
   return db
     .prepare(
       `SELECT g.id, g.name, g.invite_code AS inviteCode, g.owner_id AS ownerId,
               m.role,
               (SELECT COUNT(*) FROM group_members x WHERE x.group_id = g.id) AS memberCount,
-              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.status != 'done') AS openTasks
+              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.status != 'done') AS openTasks,
+              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.status != 'done'
+                 AND t.due_at IS NOT NULL AND t.due_at < ?) AS overdue,
+              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.status != 'done'
+                 AND t.due_at >= ? AND t.due_at < ?) AS dueToday,
+              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.status = 'done') AS doneCount,
+              (SELECT COUNT(*) FROM tasks t WHERE t.group_id = g.id AND t.important = 1 AND t.status != 'done') AS starred
        FROM groups g
        JOIN group_members m ON m.group_id = g.id AND m.user_id = ?
        ORDER BY g.created_at ASC`,
     )
-    .all(userId);
+    .all(start, start, end, userId);
 }
 
 export function joinGroupByCode(userId, code) {
@@ -349,17 +331,19 @@ const TASK_FIELDS = {
   assigneeId: 'assignee_id',
   dueAt: 'due_at',
   completedAt: 'completed_at',
+  important: 'important',
 };
 
 export function listTasks(groupId) {
   return db
     .prepare(
       `SELECT id, title, description, status, priority, assignee_id AS assigneeId,
-              tags, created_at AS createdAt, due_at AS dueAt, completed_at AS completedAt
-       FROM tasks WHERE group_id = ? ORDER BY created_at DESC`,
+              tags, created_at AS createdAt, due_at AS dueAt, completed_at AS completedAt,
+              important
+       FROM tasks WHERE group_id = ? ORDER BY important DESC, created_at DESC`,
     )
     .all(groupId)
-    .map((row) => ({ ...row, tags: safeJson(row.tags, []) }));
+    .map((row) => ({ ...row, tags: safeJson(row.tags, []), important: Boolean(row.important) }));
 }
 
 export function createTask(groupId, userId, input) {
@@ -380,6 +364,7 @@ export function createTask(groupId, userId, input) {
     now(),
     input.dueAt ?? null,
     input.status === 'done' ? now() : null,
+    input.important ? 1 : 0,
   );
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
 }
@@ -499,6 +484,46 @@ export function reminders(userId) {
       ...row,
       overdue: row.dueAt < start,
     }));
+}
+
+/**
+ * 登录后的提醒：我所在小组里，今天到期或已逾期的任务，以及被标为重点的任务。
+ * 按小组名带上，用户才知道该去哪个组处理。
+ */
+export function myAlerts(userId) {
+  const { start, end } = cstDayRange();
+
+  const due = db
+    .prepare(
+      `SELECT t.id, t.title, t.due_at AS dueAt, t.priority, t.important,
+              g.id AS groupId, g.name AS groupName, u.display_name AS assignee
+       FROM tasks t
+       JOIN groups g ON g.id = t.group_id
+       JOIN group_members m ON m.group_id = g.id AND m.user_id = ?
+       LEFT JOIN users u ON u.id = t.assignee_id
+       WHERE t.status != 'done' AND t.due_at IS NOT NULL AND t.due_at < ?
+       ORDER BY t.due_at ASC
+       LIMIT 10`,
+    )
+    .all(userId, end)
+    .map((row) => ({ ...row, important: Boolean(row.important), overdue: row.dueAt < start }));
+
+  const starred = db
+    .prepare(
+      `SELECT t.id, t.title, t.due_at AS dueAt, t.priority, t.important,
+              g.id AS groupId, g.name AS groupName, u.display_name AS assignee
+       FROM tasks t
+       JOIN groups g ON g.id = t.group_id
+       JOIN group_members m ON m.group_id = g.id AND m.user_id = ?
+       LEFT JOIN users u ON u.id = t.assignee_id
+       WHERE t.status != 'done' AND t.important = 1
+       ORDER BY t.due_at IS NULL, t.due_at ASC
+       LIMIT 10`,
+    )
+    .all(userId)
+    .map((row) => ({ ...row, important: true, overdue: false }));
+
+  return { due, starred };
 }
 
 function safeJson(text, fallback) {

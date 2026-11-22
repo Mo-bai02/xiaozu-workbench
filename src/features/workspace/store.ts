@@ -26,6 +26,8 @@ export interface Task {
   createdAt: number;
   dueAt: number | null;
   completedAt: number | null;
+  /** 重点任务：自己手动标星，会进登录后的提醒 */
+  important: boolean;
 }
 
 export interface Activity {
@@ -44,6 +46,7 @@ export interface TaskInput {
   assigneeId?: string | null;
   dueAt?: number | null;
   tags?: string[];
+  important?: boolean;
 }
 
 interface WorkspaceState {

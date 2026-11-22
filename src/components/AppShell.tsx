@@ -22,6 +22,7 @@ import {
   BulbFilled,
   BulbOutlined,
   ClockCircleOutlined,
+  DownOutlined,
   DashboardOutlined,
   ExperimentOutlined,
   FileTextOutlined,
@@ -40,6 +41,7 @@ import {
   WalletOutlined,
 } from '@ant-design/icons';
 import { CommandPalette, SHORTCUT_LABEL } from '@/components/CommandPalette';
+import { GroupSwitcher } from '@/components/GroupSwitcher';
 import { FloatingBall } from '@/components/FloatingBall';
 import { api } from '@/lib/http';
 import { formatCst } from '@/lib/time';
@@ -106,10 +108,10 @@ export function AppShell() {
   const groups = useGroupStore((s) => s.groups);
   const activeId = useGroupStore((s) => s.activeId);
   const loaded = useGroupStore((s) => s.loaded);
-  const setActive = useGroupStore((s) => s.setActive);
   const activeGroup = groups.find((group) => group.id === activeId) ?? null;
 
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const healthMeta = useMemo(() => {
     switch (health.mode) {
@@ -243,26 +245,16 @@ export function AppShell() {
               {NAV.find((item) => item.key === selectedKey)?.label}
             </Typography.Text>
 
-            <Select
+            <Button
               size="small"
+              className="group-switch-btn"
               aria-label="切换小组"
-              className="group-select"
-              value={activeId ?? undefined}
-              onChange={(id) => setActive(id)}
-              popupMatchSelectWidth={false}
-              style={{ minWidth: 120, maxWidth: 170 }}
-              options={groups.map((group) => ({ value: group.id, label: group.name }))}
-              dropdownRender={(menuNode) => (
-                <>
-                  {menuNode}
-                  <div className="group-select-foot">
-                    <Button size="small" type="link" onClick={() => navigate('/groups')}>
-                      管理小组
-                    </Button>
-                  </div>
-                </>
-              )}
-            />
+              onClick={() => setSwitcherOpen(true)}
+            >
+              <TeamOutlined />
+              <span className="group-switch-name">{activeGroup?.name ?? '选择小组'}</span>
+              <DownOutlined className="group-switch-caret" />
+            </Button>
           </Space>
 
           <Space size={8}>
@@ -380,6 +372,7 @@ export function AppShell() {
       </Layout>
 
       <CommandPalette />
+      <GroupSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
       <FloatingBall />
 
       <Drawer

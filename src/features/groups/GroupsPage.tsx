@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -14,16 +14,38 @@ import {
   Typography,
   message,
 } from 'antd';
-import { CopyOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import { CopyOutlined, PlusOutlined, TeamOutlined, ThunderboltFilled } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { api } from '@/lib/http';
+import { cstDayKey, formatCst } from '@/lib/time';
 import { useAuthStore } from '@/store/auth';
 import { useGroupStore, type GroupSummary } from '@/store/group';
+
+interface AlertTask {
+  id: string;
+  title: string;
+  dueAt: number | null;
+  priority: 'low' | 'mid' | 'high';
+  important: boolean;
+  groupId: string;
+  groupName: string;
+  assignee: string | null;
+  overdue?: boolean;
+}
 
 const ROLE_LABEL: Record<string, { text: string; color: string }> = {
   owner: { text: '创建者', color: 'gold' },
   admin: { text: '管理员', color: 'blue' },
   member: { text: '成员', color: 'default' },
 };
+
+/** 红黄绿灯：先看有没有逾期，再看今天到期，最后看有没有在办 */
+export function groupLight(group: GroupSummary): { color: string; label: string } {
+  if (group.overdue > 0) return { color: '#e5484d', label: `${group.overdue} 个逾期` };
+  if (group.dueToday > 0) return { color: '#d4a72c', label: `今天到期 ${group.dueToday}` };
+  if (group.openTasks > 0) return { color: '#2f9e63', label: '进行中' };
+  return { color: '#c4ccd8', label: '暂无任务' };
+}
 
 export function GroupsPage() {
   const navigate = useNavigate();
@@ -39,12 +61,36 @@ export function GroupsPage() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [alerts, setAlerts] = useState<{ due: AlertTask[]; starred: AlertTask[] }>({ due: [], starred: [] });
+  const [alertOpen, setAlertOpen] = useState(false);
   const [form] = Form.useForm<{ name: string }>();
   const [joinForm] = Form.useForm<{ code: string }>();
 
   useEffect(() => {
     void fetchGroups();
   }, [fetchGroups]);
+
+  useEffect(() => {
+    let alive = true;
+    void api<{ due: AlertTask[]; starred: AlertTask[] }>('/alerts')
+      .then((data) => {
+        if (!alive) return;
+        setAlerts(data);
+        // 每天第一次进来自动弹一次，之后收起成顶部提示条，不打扰
+        const key = `ai-console:alerts-seen:${cstDayKey()}`;
+        const seen = sessionStorage.getItem(key);
+        if (!seen && (data.due.length > 0 || data.starred.length > 0)) {
+          setAlertOpen(true);
+          sessionStorage.setItem(key, '1');
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const alertCount = alerts.due.length + alerts.starred.length;
 
   const enter = (group: GroupSummary) => {
     setActive(group.id);
@@ -83,6 +129,73 @@ export function GroupsPage() {
     }
   };
 
+  const alertList = useMemo(
+    () => (
+      <div className="alert-modal">
+        <div className="alert-section">
+          <div className="alert-section-title">
+            <span className="alert-dot" style={{ background: '#e5484d' }} />
+            今天到期与逾期
+            <Tag bordered={false}>{alerts.due.length}</Tag>
+          </div>
+          {alerts.due.length === 0 ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              没有今天到期的任务
+            </Typography.Text>
+          ) : (
+            <ul className="alert-list">
+              {alerts.due.map((task) => (
+                <li key={task.id} onClick={() => void goTo(task)}>
+                  <span className={task.overdue ? 'alert-flag is-overdue' : 'alert-flag'}>
+                    {task.overdue ? '逾期' : '今天'}
+                  </span>
+                  <span className="alert-title">{task.title}</span>
+                  <span className="alert-meta">
+                    {task.groupName}
+                    {task.assignee ? ` · ${task.assignee}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="alert-section">
+          <div className="alert-section-title">
+            <span className="alert-dot" style={{ background: '#d4a72c' }} />
+            我标记的重点
+            <Tag bordered={false}>{alerts.starred.length}</Tag>
+          </div>
+          {alerts.starred.length === 0 ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              还没有标记重点任务，可以在看板卡片菜单里标
+            </Typography.Text>
+          ) : (
+            <ul className="alert-list">
+              {alerts.starred.map((task) => (
+                <li key={task.id} onClick={() => void goTo(task)}>
+                  <ThunderboltFilled className="alert-star" />
+                  <span className="alert-title">{task.title}</span>
+                  <span className="alert-meta">
+                    {task.groupName}
+                    {task.dueAt ? ` · ${formatCst(task.dueAt)}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    ),
+    [alerts],
+  );
+
+  const goTo = async (task: AlertTask) => {
+    setActive(task.groupId);
+    setAlertOpen(false);
+    navigate('/board');
+  };
+
   return (
     <div className="auth-page groups-page">
       <div className="groups-head">
@@ -91,7 +204,7 @@ export function GroupsPage() {
             选择小组
           </Typography.Title>
           <Typography.Text type="secondary">
-            {user ? `${user.displayName}，` : ''}数据按小组隔离，可以同时加入多个。
+            {user ? `${user.displayName}，` : ''}数据按小组隔离，可以同时加入多个
           </Typography.Text>
         </div>
         <Space>
@@ -104,16 +217,23 @@ export function GroupsPage() {
         </Space>
       </div>
 
+      {alertCount > 0 && (
+        <button type="button" className="alert-banner" onClick={() => setAlertOpen(true)}>
+          <span className="alert-banner-icon">
+            <ThunderboltFilled />
+          </span>
+          你有 <b>{alertCount}</b> 条提醒：今天到期 {alerts.due.length} 条，重点任务 {alerts.starred.length} 条
+          <span className="alert-banner-more">查看</span>
+        </button>
+      )}
+
       {loading && !loaded ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <Spin />
         </div>
       ) : groups.length === 0 ? (
         <Card className="panel">
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="还没有加入任何小组"
-          >
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有加入任何小组">
             <Space>
               <Button type="primary" onClick={() => setCreating(true)}>
                 创建一个
@@ -126,13 +246,10 @@ export function GroupsPage() {
         <Row gutter={[12, 12]}>
           {groups.map((group) => {
             const role = ROLE_LABEL[group.role] ?? { text: '成员', color: 'default' };
+            const light = groupLight(group);
             return (
               <Col xs={24} sm={12} lg={8} key={group.id}>
-                <Card
-                  hoverable
-                  className="group-card"
-                  onClick={() => enter(group)}
-                >
+                <Card hoverable className="group-card" onClick={() => enter(group)}>
                   <div className="group-card-head">
                     <span className="group-avatar">
                       <TeamOutlined />
@@ -140,10 +257,30 @@ export function GroupsPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="group-name">{group.name}</div>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {group.memberCount} 人 · {group.openTasks} 个进行中
+                        {group.memberCount} 人 · 完成 {group.doneCount}/{group.openTasks + group.doneCount}
                       </Typography.Text>
                     </div>
                     <Tag color={role.color}>{role.text}</Tag>
+                  </div>
+
+                  <div className="group-light-row">
+                    <span className="group-light" style={{ background: light.color }} />
+                    <span className="group-light-label" style={{ color: light.color }}>
+                      {light.label}
+                    </span>
+                    <span className="group-counts">
+                      待办 {group.openTasks - group.dueToday}
+                      <i />
+                      今日 {group.dueToday}
+                      <i />
+                      逾期 {group.overdue}
+                      {group.starred > 0 && (
+                        <>
+                          <i />
+                          <ThunderboltFilled style={{ color: '#d4a72c' }} /> {group.starred}
+                        </>
+                      )}
+                    </span>
                   </div>
 
                   {group.role === 'owner' && (
@@ -165,6 +302,19 @@ export function GroupsPage() {
         </Row>
       )}
 
+      <Modal
+        open={alertOpen}
+        title="今天的提醒"
+        onCancel={() => setAlertOpen(false)}
+        footer={
+          <Button type="primary" onClick={() => setAlertOpen(false)}>
+            知道了
+          </Button>
+        }
+        width={560}
+      >
+        {alertList}
+      </Modal>
 
       <Modal
         open={creating}
@@ -181,7 +331,7 @@ export function GroupsPage() {
           </Form.Item>
         </Form>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          创建后你是创建者，可以任命管理员。
+          新小组是空的，任务从零开始加。
         </Typography.Text>
       </Modal>
 

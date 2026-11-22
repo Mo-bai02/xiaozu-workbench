@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run",
-    "api": "node server/index.mjs"
+    "api": "node server/index.mjs",
+    "seed:demo": "node server/seed-demo.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "5.5.1",

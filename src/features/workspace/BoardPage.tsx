@@ -24,6 +24,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   RobotOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -208,17 +209,26 @@ export function BoardPage() {
                   >
                     <div className="task-top">
                       <span className={cn('task-title', task.status === 'done' && 'is-done')}>
+                        {task.important && <span className="task-star">★</span>}
                         {task.title}
                       </span>
                       <Dropdown
                         trigger={['click']}
                         menu={{
                           items: [
+                            {
+                              key: 'important',
+                              icon: <StarOutlined />,
+                              label: task.important ? '取消重点' : '标记重点',
+                            },
                             { key: 'split', icon: <RobotOutlined />, label: '让 AI 拆解' },
                             { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true },
                           ],
                           onClick: ({ key, domEvent }) => {
                             domEvent.stopPropagation();
+                            if (key === 'important') {
+                              void updateTask(task.id, { important: !task.important });
+                            }
                             if (key === 'split') askSplit(task);
                             if (key === 'delete') removeTask(task.id);
                           },
