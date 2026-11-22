@@ -5,6 +5,7 @@ import {
   Empty,
   Input,
   Popconfirm,
+  Modal,
   Segmented,
   Space,
   Tag,
@@ -18,10 +19,12 @@ import {
   PushpinOutlined,
   PlusOutlined,
   RobotOutlined,
+  ShareAltOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Markdown } from '@/components/Markdown';
+import { createShare, revokeShare } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { filterNotes, useNotesStore, type Note } from './store';
 
@@ -52,6 +55,10 @@ export function NotesPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [shareTarget, setShareTarget] = useState<Note | null>(null);
+  const [shareUrl, setShareUrl] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState('');
 
   const tags = useMemo(() => {
     const map = new Map<string, number>();
@@ -99,6 +106,34 @@ export function NotesPage() {
     link.download = `${active.title.replace(/[\\/:*?"<>|]/g, '_') || '笔记'}.md`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const openShare = async () => {
+    if (!active) return;
+    setShareTarget(active);
+    setShareError('');
+    if (active.shareId) {
+      setShareUrl(`${window.location.origin}/share/${active.shareId}`);
+      return;
+    }
+    setShareUrl('');
+    setSharing(true);
+    try {
+      const id = await createShare({ title: active.title, content: active.content });
+      update(active.id, { shareId: id });
+      setShareUrl(`${window.location.origin}/share/${id}`);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const revoke = async () => {
+    if (!shareTarget?.shareId) return;
+    await revokeShare(shareTarget.shareId);
+    update(shareTarget.id, { shareId: undefined });
+    setShareUrl('');
   };
 
   const summarize = () => {
@@ -213,6 +248,14 @@ export function NotesPage() {
                       onClick={() => togglePin(active.id)}
                     />
                   </Tooltip>
+                  <Tooltip title={active.shareId ? '管理分享链接' : '分享这条笔记'}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ShareAltOutlined />}
+                      onClick={() => void openShare()}
+                    />
+                  </Tooltip>
                   <Tooltip title="导出 Markdown">
                     <Button size="small" type="text" icon={<DownloadOutlined />} onClick={exportNote} />
                   </Tooltip>
@@ -250,6 +293,45 @@ export function NotesPage() {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={Boolean(shareTarget)}
+        title="分享这条笔记"
+        onCancel={() => setShareTarget(null)}
+        footer={
+          <Space>
+            {shareUrl && (
+              <Button danger onClick={() => void revoke()}>
+                撤销分享
+              </Button>
+            )}
+            <Button type="primary" onClick={() => setShareTarget(null)}>
+              完成
+            </Button>
+          </Space>
+        }
+      >
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          笔记本身只存在你的浏览器里；分享只是把当前内容复制一份到服务端，生成一个只读链接。
+          撤销后链接立即失效。
+        </Typography.Paragraph>
+
+        {sharing && <Typography.Text type="secondary">正在生成链接…</Typography.Text>}
+        {shareError && <Typography.Text type="danger">{shareError}</Typography.Text>}
+
+        {shareUrl && (
+          <Space.Compact style={{ width: '100%', marginTop: 8 }}>
+            <Input readOnly value={shareUrl} />
+            <Button
+              onClick={async () => {
+                await navigator.clipboard.writeText(shareUrl).catch(() => undefined);
+              }}
+            >
+              复制
+            </Button>
+          </Space.Compact>
+        )}
+      </Modal>
     </div>
   );
 }

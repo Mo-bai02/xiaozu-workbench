@@ -20,6 +20,10 @@ const GeneratorPage = lazy(() =>
   import('@/features/generator/GeneratorPage').then((m) => ({ default: m.GeneratorPage })),
 );
 const LogsPage = lazy(() => import('@/features/logs/LogsPage').then((m) => ({ default: m.LogsPage })));
+const SharePage = lazy(() => import('@/features/notes/SharePage').then((m) => ({ default: m.SharePage })));
+const SettingsPage = lazy(() =>
+  import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 function PageFallback() {
   return (
@@ -60,6 +64,8 @@ export function App() {
       <AntApp>
         <Suspense fallback={<PageFallback />}>
           <Routes>
+            {/* 分享页在 AppShell 之外：外部访客不该看到工作台的导航与数据入口 */}
+            <Route path="/share/:id" element={<SharePage />} />
             <Route element={<AppShell />}>
               <Route path="/" element={<Navigate to="/overview" replace />} />
               <Route path="/overview" element={<OverviewPage />} />
@@ -71,6 +77,7 @@ export function App() {
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/generator" element={<GeneratorPage />} />
               <Route path="/logs" element={<LogsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/overview" replace />} />
             </Route>
           </Routes>

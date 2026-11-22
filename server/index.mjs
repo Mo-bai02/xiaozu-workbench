@@ -97,6 +97,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // 访客隔离：日志按 X-Visitor-Id 分组，互不可见
 // ---------------------------------------------------------------------------
 const MAX_LOGS_PER_VISITOR = 100;
+/** 分享出去的笔记：只读、凭链接访问。内存存储，重启清空。 */
+const shares = new Map();
 const logsByVisitor = new Map();
 
 /** 访客 id 由前端 localStorage 生成；伪造别人的 id 理论上能看到别人的日志，所以这不是鉴权 */
@@ -615,6 +617,49 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/logs' && req.method === 'DELETE') {
       const visitor = getVisitor(req);
       logsByVisitor.set(visitor, []);
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    if (url.pathname === '/api/shares' && req.method === 'POST') {
+      const body = await readJson(req);
+      const content = String(body.content ?? '').slice(0, 20000);
+      if (!content.trim()) {
+        res.writeHead(400, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: '内容不能为空' }));
+        return;
+      }
+      const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
+      shares.set(id, {
+        id,
+        title: String(body.title ?? '').slice(0, 80) || '未命名笔记',
+        content,
+        createdAt: Date.now(),
+        views: 0,
+      });
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ id }));
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/shares/') && req.method === 'GET') {
+      const id = url.pathname.slice('/api/shares/'.length);
+      const share = shares.get(id);
+      if (!share) {
+        res.writeHead(404, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: '分享不存在或已撤销' }));
+        return;
+      }
+      share.views += 1;
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(share));
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/shares/') && req.method === 'DELETE') {
+      const id = url.pathname.slice('/api/shares/'.length);
+      shares.delete(id);
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ ok: true }));
       return;

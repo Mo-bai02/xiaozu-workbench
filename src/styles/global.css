@@ -1682,3 +1682,65 @@ body {
     max-height: 240px;
   }
 }
+
+
+/* ---- 分享页 ---- */
+
+.share-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.share-card {
+  box-shadow: var(--shadow);
+}
+
+.share-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+
+.share-body {
+  font-size: 14.5px;
+}
+
+.share-foot {
+  margin-top: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- 专注补充 ---- */
+
+.focus-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.focus-notify {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}

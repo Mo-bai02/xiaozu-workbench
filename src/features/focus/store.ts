@@ -10,7 +10,11 @@ export interface FocusSession {
 
 interface FocusState {
   sessions: FocusSession[];
+  /** 用户自定义的时长（分钟），持久化 */
+  focusMinutes: number;
+  breakMinutes: number;
   add: (minutes: number, taskId: string | null) => void;
+  setDurations: (focusMinutes: number, breakMinutes: number) => void;
   reset: () => void;
 }
 
@@ -50,14 +54,42 @@ function persist(sessions: FocusSession[]): void {
 
 const boot = typeof window === 'undefined' ? seed() : load();
 
+function loadDurations(): { focusMinutes: number; breakMinutes: number } {
+  try {
+    const raw = localStorage.getItem('ai-console:focus-duration');
+    if (raw) {
+      const parsed = JSON.parse(raw) as { focusMinutes?: number; breakMinutes?: number };
+      const focusMinutes = Math.min(180, Math.max(1, Number(parsed.focusMinutes) || 25));
+      const breakMinutes = Math.min(60, Math.max(1, Number(parsed.breakMinutes) || 5));
+      return { focusMinutes, breakMinutes };
+    }
+  } catch {
+    /* 忽略 */
+  }
+  return { focusMinutes: 25, breakMinutes: 5 };
+}
+
+const durations = typeof window === 'undefined' ? { focusMinutes: 25, breakMinutes: 5 } : loadDurations();
+
 export const useFocusStore = create<FocusState>((set, get) => ({
   sessions: boot,
+  focusMinutes: durations.focusMinutes,
+  breakMinutes: durations.breakMinutes,
   add: (minutes, taskId) => {
     const session: FocusSession = { id: uid('f'), minutes, taskId, endedAt: Date.now() };
     const sessions = [session, ...get().sessions].slice(0, 200);
     persist(sessions);
     set({ sessions });
   },
+  setDurations: (focusMinutes, breakMinutes) => {
+    try {
+      localStorage.setItem('ai-console:focus-duration', JSON.stringify({ focusMinutes, breakMinutes }));
+    } catch {
+      /* 忽略 */
+    }
+    set({ focusMinutes, breakMinutes });
+  },
+
   reset: () => {
     persist([]);
     set({ sessions: [] });

@@ -36,3 +36,37 @@ export async function fetchLogs(): Promise<LogEntry[]> {
 export async function clearLogs(): Promise<void> {
   await apiFetch('/logs', { method: 'DELETE' });
 }
+
+
+export interface SharedNote {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  views: number;
+}
+
+/** 把一条笔记上传成只读分享，返回分享 id */
+export async function createShare(note: { title: string; content: string }): Promise<string> {
+  const res = await apiFetch('/shares', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(note),
+  });
+  if (!res.ok) throw new Error('分享失败，请稍后再试');
+  const data = (await res.json()) as { id: string };
+  return data.id;
+}
+
+export async function getShare(id: string): Promise<SharedNote> {
+  const res = await apiFetch(`/shares/${id}`);
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ error: '读取失败' }));
+    throw new Error(detail.error ?? '读取失败');
+  }
+  return (await res.json()) as SharedNote;
+}
+
+export async function revokeShare(id: string): Promise<void> {
+  await apiFetch(`/shares/${id}`, { method: 'DELETE' });
+}

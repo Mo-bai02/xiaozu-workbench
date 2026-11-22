@@ -7,6 +7,8 @@ export interface Note {
   content: string;
   tags: string[];
   pinned: boolean;
+  /** 已分享的 id；为空表示未分享 */
+  shareId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -14,7 +16,7 @@ export interface Note {
 interface NoteState {
   notes: Note[];
   create: () => string;
-  update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'tags'>>) => void;
+  update: (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'shareId'>>) => void;
   togglePin: (id: string) => void;
   remove: (id: string) => void;
 }

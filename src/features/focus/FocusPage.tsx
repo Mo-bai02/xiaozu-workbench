@@ -1,76 +1,160 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Col, Empty, Row, Select, Space, Statistic, Tag, Typography } from 'antd';
-import { PauseCircleOutlined, PlayCircleOutlined, RedoOutlined, CoffeeOutlined } from '@ant-design/icons';
+import {
+  Button,
+  Card,
+  Col,
+  Empty,
+  InputNumber,
+  Modal,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Statistic,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  BellOutlined,
+  CoffeeOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  RedoOutlined,
+} from '@ant-design/icons';
 import { Bars } from '@/components/charts';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { focusTrend, minutesOnDay, useFocusStore } from './store';
 
-const FOCUS_MINUTES = 25;
-const BREAK_MINUTES = 5;
-
 type Mode = 'focus' | 'break';
 
-function beep(): void {
+const PRESETS = [15, 25, 45, 60];
+
+function beep(times = 2): void {
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + 0.62);
+    for (let i = 0; i < times; i += 1) {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = i === 0 ? 880 : 660;
+      const start = ctx.currentTime + i * 0.35;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
+      oscillator.start(start);
+      oscillator.stop(start + 0.34);
+    }
   } catch {
-    /* 浏览器不支持或被静音，忽略 */
+    /* 静音或浏览器不支持 */
+  }
+}
+
+/**
+ * 独立线程的计时器。
+ *
+ * 主线程的 setInterval 在标签页不可见时会被浏览器节流（Chrome 可能压到每分钟一次），
+ * 计时精度靠"结束时间戳"已经解决了，但"到点提醒"仍会被推迟。
+ * 把 tick 放进 Worker，节流影响明显更小；再配合 visibilitychange 主动对时，基本够用。
+ * 注意：这不能保证 100% 准时 —— 浏览器把整个页面冻结时，任何 JS 都跑不了。
+ */
+function createTicker(onTick: () => void): () => void {
+  try {
+    const source = `let t=null;onmessage=function(e){if(e.data==='start'){if(t)clearInterval(t);t=setInterval(function(){postMessage('tick')},500)}else if(e.data==='stop'){clearInterval(t);t=null}}`;
+    const worker = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
+    worker.onmessage = () => onTick();
+    worker.postMessage('start');
+    return () => {
+      worker.postMessage('stop');
+      worker.terminate();
+    };
+  } catch {
+    const timer = window.setInterval(onTick, 500);
+    return () => window.clearInterval(timer);
   }
 }
 
 export function FocusPage() {
-  const { sessions, add } = useFocusStore();
+  const { sessions, add, focusMinutes, breakMinutes, setDurations } = useFocusStore();
   const tasks = useWorkspaceStore((s) => s.tasks);
+
   const [mode, setMode] = useState<Mode>('focus');
   const [running, setRunning] = useState(false);
-  const [remaining, setRemaining] = useState(FOCUS_MINUTES * 60);
+  const [remaining, setRemaining] = useState(focusMinutes * 60);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [ringing, setRinging] = useState(false);
+  const [notifyState, setNotifyState] = useState<NotificationPermission | 'unsupported'>(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  );
+
   const deadlineRef = useRef<number | null>(null);
+  const stopTickerRef = useRef<(() => void) | null>(null);
   const originalTitle = useRef(document.title);
 
-  const total = mode === 'focus' ? FOCUS_MINUTES * 60 : BREAK_MINUTES * 60;
+  const total = (mode === 'focus' ? focusMinutes : breakMinutes) * 60;
+
+  const notify = useCallback(
+    (title: string, body: string) => {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      try {
+        new Notification(title, { body, tag: 'ai-console-focus' });
+      } catch {
+        /* 某些环境不允许构造，忽略 */
+      }
+    },
+    [],
+  );
 
   const finish = useCallback(() => {
     setRunning(false);
+    setRinging(true);
     deadlineRef.current = null;
     setRemaining(0);
-    beep();
-    if (mode === 'focus') {
-      add(FOCUS_MINUTES, taskId);
-      setMode('break');
-      setRemaining(BREAK_MINUTES * 60);
-    } else {
-      setMode('focus');
-      setRemaining(FOCUS_MINUTES * 60);
-    }
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(mode === 'focus' ? '专注结束，休息 5 分钟' : '休息结束，继续加油');
-    }
-  }, [add, mode, taskId]);
+    beep(mode === 'focus' ? 2 : 1);
 
-  // 用「结束时间戳」而不是每秒减一：切到后台时 setInterval 会被节流，靠差值才不会走慢
+    if (mode === 'focus') {
+      add(focusMinutes, taskId);
+      notify('专注结束', `已完成 ${focusMinutes} 分钟，起来活动一下。`);
+    } else {
+      notify('休息结束', '回来继续吧。');
+    }
+  }, [add, focusMinutes, mode, notify, taskId]);
+
+  /** 用结束时间戳算剩余，避免后台节流导致走慢 */
+  const syncRemaining = useCallback(() => {
+    if (deadlineRef.current === null) return;
+    const left = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
+    setRemaining(left);
+    if (left <= 0) finish();
+  }, [finish]);
+
   useEffect(() => {
-    if (!running) return;
-    if (deadlineRef.current === null) deadlineRef.current = Date.now() + remaining * 1000;
-    const timer = window.setInterval(() => {
-      const left = Math.max(0, Math.round(((deadlineRef.current ?? 0) - Date.now()) / 1000));
-      setRemaining(left);
-      if (left <= 0) finish();
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [running, remaining, finish]);
+    if (!running) {
+      stopTickerRef.current?.();
+      stopTickerRef.current = null;
+      return;
+    }
+    deadlineRef.current = Date.now() + remaining * 1000;
+    stopTickerRef.current = createTicker(syncRemaining);
+    return () => {
+      stopTickerRef.current?.();
+      stopTickerRef.current = null;
+    };
+    // 只在开始/暂停时重建 ticker；remaining 由 ticker 自己维护
+  }, [running]);
+
+  // 页面重新可见时立刻对一次时（后台被冻结后的补偿）
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && running) syncRemaining();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [running, syncRemaining]);
 
   useEffect(() => {
     if (running) {
@@ -86,9 +170,11 @@ export function FocusPage() {
   }, [running, remaining, mode]);
 
   const start = () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      void Notification.requestPermission();
+    if (notifyState === 'default') {
+      void Notification.requestPermission().then((permission) => setNotifyState(permission));
     }
+    setRinging(false);
+    setRemaining(total);
     setRunning(true);
   };
 
@@ -99,6 +185,7 @@ export function FocusPage() {
 
   const reset = () => {
     setRunning(false);
+    setRinging(false);
     deadlineRef.current = null;
     setRemaining(total);
   };
@@ -106,16 +193,22 @@ export function FocusPage() {
   const switchMode = (next: Mode) => {
     setMode(next);
     setRunning(false);
+    setRinging(false);
     deadlineRef.current = null;
-    setRemaining(next === 'focus' ? FOCUS_MINUTES * 60 : BREAK_MINUTES * 60);
+    setRemaining((next === 'focus' ? focusMinutes : breakMinutes) * 60);
+  };
+
+  const changeFocusMinutes = (minutes: number) => {
+    const value = Math.min(180, Math.max(1, Math.round(minutes)));
+    setDurations(value, breakMinutes);
+    if (!running && mode === 'focus') setRemaining(value * 60);
   };
 
   const today = minutesOnDay(sessions, new Date());
   const trend = useMemo(() => focusTrend(sessions), [sessions]);
   const weekTotal = trend.reduce((sum, item) => sum + item.value, 0);
   const openTasks = tasks.filter((task) => task.status !== 'done');
-
-  const progress = 1 - remaining / total;
+  const progress = total > 0 ? 1 - remaining / total : 0;
 
   return (
     <div className="page">
@@ -124,20 +217,43 @@ export function FocusPage() {
           专注计时
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          25 分钟专注 + 5 分钟休息。切到后台也不会走慢（用结束时间戳算差值），结束会响一声并写进统计。
+          时间可自己调。到点会在页面里弹提醒、同时发一条系统通知 —— 就算你切到别的应用也能看到，不会把你拽回这个页面。
         </Typography.Paragraph>
       </div>
 
       <Row gutter={[12, 12]}>
         <Col xs={24} lg={14}>
           <Card size="small" className="panel focus-card">
-            <Space size={6} style={{ marginBottom: 18 }}>
+            <Space size={6} style={{ marginBottom: 14 }} wrap>
               <Tag.CheckableTag checked={mode === 'focus'} onChange={() => switchMode('focus')}>
-                <PlayCircleOutlined /> 专注 25 分钟
+                <PlayCircleOutlined /> 专注
               </Tag.CheckableTag>
               <Tag.CheckableTag checked={mode === 'break'} onChange={() => switchMode('break')}>
-                <CoffeeOutlined /> 休息 5 分钟
+                <CoffeeOutlined /> 休息
               </Tag.CheckableTag>
+              <span className="focus-duration">
+                专注
+                <InputNumber
+                  size="small"
+                  min={1}
+                  max={180}
+                  value={focusMinutes}
+                  onChange={(value) => changeFocusMinutes(Number(value) || 25)}
+                  style={{ width: 62 }}
+                  disabled={running}
+                />
+                分钟 · 休息
+                <InputNumber
+                  size="small"
+                  min={1}
+                  max={60}
+                  value={breakMinutes}
+                  onChange={(value) => setDurations(focusMinutes, Math.min(60, Math.max(1, Number(value) || 5)))}
+                  style={{ width: 54 }}
+                  disabled={running}
+                />
+                分钟
+              </span>
             </Space>
 
             <div className="focus-ring">
@@ -158,7 +274,8 @@ export function FocusPage() {
                 />
               </svg>
               <div className="focus-time">
-                {String(Math.floor(remaining / 60)).padStart(2, '0')}:{String(remaining % 60).padStart(2, '0')}
+                {String(Math.floor(remaining / 60)).padStart(2, '0')}:
+                {String(remaining % 60).padStart(2, '0')}
                 <span>{mode === 'focus' ? '专注中' : '休息中'}</span>
               </div>
             </div>
@@ -178,6 +295,24 @@ export function FocusPage() {
               </Button>
             </div>
 
+            <Space size={6} wrap style={{ marginTop: 12 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                预设
+              </Typography.Text>
+              <Segmented
+                size="small"
+                value={PRESETS.includes(focusMinutes) ? focusMinutes : 'custom'}
+                onChange={(value) => {
+                  if (value === 'custom') return;
+                  changeFocusMinutes(Number(value));
+                }}
+                options={[
+                  ...PRESETS.map((minutes) => ({ label: `${minutes} 分`, value: minutes })),
+                  ...(PRESETS.includes(focusMinutes) ? [] : [{ label: `${focusMinutes} 分`, value: 'custom' }]),
+                ]}
+              />
+            </Space>
+
             <div className="focus-task">
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 正在做
@@ -190,6 +325,18 @@ export function FocusPage() {
                 onChange={(value) => setTaskId(value ?? null)}
                 options={openTasks.map((task) => ({ value: task.id, label: task.title }))}
               />
+            </div>
+
+            <div className="focus-notify">
+              <BellOutlined />
+              {notifyState === 'granted' && <span>桌面通知已开启，切到别的应用也会提醒</span>}
+              {notifyState === 'default' && (
+                <Button size="small" type="link" onClick={() => void Notification.requestPermission().then(setNotifyState)}>
+                  开启桌面通知
+                </Button>
+              )}
+              {notifyState === 'denied' && <span>桌面通知被拒绝，只剩页面内提醒（可在浏览器设置里改）</span>}
+              {notifyState === 'unsupported' && <span>当前环境不支持桌面通知</span>}
             </div>
           </Card>
         </Col>
@@ -236,6 +383,32 @@ export function FocusPage() {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        open={ringing}
+        title={mode === 'focus' ? '专注结束' : '休息结束'}
+        okText={mode === 'focus' ? '开始休息' : '再来一轮'}
+        cancelText="先不用"
+        onOk={() => {
+          setRinging(false);
+          if (mode === 'focus') switchMode('break');
+          else switchMode('focus');
+          setRunning(false);
+        }}
+        onCancel={() => {
+          setRinging(false);
+          setRemaining(total);
+        }}
+      >
+        <p style={{ margin: '8px 0' }}>
+          {mode === 'focus'
+            ? `已经专注 ${focusMinutes} 分钟，起来走两步、看看远处。`
+            : `休息 ${breakMinutes} 分钟结束，准备好就继续。`}
+        </p>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          提示窗口不会跳转页面，关掉就还在原地。
+        </Typography.Text>
+      </Modal>
     </div>
   );
 }

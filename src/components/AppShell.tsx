@@ -15,6 +15,7 @@ import {
   MenuUnfoldOutlined,
   MessageOutlined,
   ProjectOutlined,
+  SettingOutlined,
   TableOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
@@ -35,11 +36,13 @@ const NAV = [
   { key: '/chat', icon: <MessageOutlined />, label: '智能助手' },
   { key: '/generator', icon: <ExperimentOutlined />, label: '表单生成' },
   { key: '/logs', icon: <TableOutlined />, label: 'AI 调用记录' },
+  { key: '/settings', icon: <SettingOutlined />, label: '设置与数据' },
 ];
 
 const MENU_ITEMS = [
   { type: 'group' as const, label: '工作台', children: NAV.slice(0, 6) },
-  { type: 'group' as const, label: 'AI 能力', children: NAV.slice(6) },
+  { type: 'group' as const, label: 'AI 能力', children: NAV.slice(6, 9) },
+  { type: 'group' as const, label: '其他', children: NAV.slice(9) },
 ];
 
 export function AppShell() {
