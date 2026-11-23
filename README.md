@@ -284,7 +284,7 @@ node scripts/run-with-local-tmp.mjs vite --host 0.0.0.0
 
 ## 一键启动（Windows）
 
-双击项目根目录的 `start.bat`，或者桌面上的「AI Console」快捷方式。它会依次做三件事：
+双击项目根目录的 `start.bat`，或者桌面上的「小组工作台」快捷方式。它会依次做三件事：
 
 1. 没有 `dist` 就先构建
 2. 8787 空闲则开一个服务窗口（端口被占就跳过）
@@ -294,7 +294,7 @@ node scripts/run-with-local-tmp.mjs vite --host 0.0.0.0
 
 | 想做什么 | 怎么做 |
 |---|---|
-| 只在本机用，不开公网 | `start.bat notunnel`，或桌面「AI Console（仅本机）」 |
+| 只在本机用，不开公网 | `start.bat notunnel`，或桌面「小组工作台（仅本机）」 |
 | 开机自动启动 | 把快捷方式放进 `shell:startup`（注意：会让公网入口一直开着） |
 | 改了代码想生效 | 先 `npm run build`，再启动（脚本只在没有 dist 时自动构建） |
 
