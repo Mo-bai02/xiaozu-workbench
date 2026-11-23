@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -8,7 +9,6 @@ import {
   Modal,
   Row,
   Segmented,
-  Select,
   Space,
   Statistic,
   Tag,
@@ -85,7 +85,7 @@ export function FocusPage() {
   const [mode, setMode] = useState<Mode>('focus');
   const [running, setRunning] = useState(false);
   const [remaining, setRemaining] = useState(focusMinutes * 60);
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState('');
   const [ringing, setRinging] = useState(false);
   const [notifyState, setNotifyState] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
@@ -113,6 +113,8 @@ export function FocusPage() {
     [],
   );
 
+  const targetTask = tasks.find((task) => task.title === focusTarget.trim()) ?? null;
+
   const finish = useCallback(() => {
     setRunning(false);
     setRinging(true);
@@ -121,12 +123,12 @@ export function FocusPage() {
     beep(mode === 'focus' ? 2 : 1);
 
     if (mode === 'focus') {
-      add(focusMinutes, taskId);
+      add(focusMinutes, targetTask?.id ?? null, targetTask ? undefined : focusTarget.trim() || undefined);
       notify('专注结束', `已完成 ${focusMinutes} 分钟`);
     } else {
       notify('休息结束', '休息时间到。');
     }
-  }, [add, focusMinutes, mode, notify, taskId]);
+  }, [add, focusMinutes, focusTarget, mode, notify, targetTask]);
 
   /** 用结束时间戳算剩余，避免后台节流导致走慢 */
   const syncRemaining = useCallback(() => {
@@ -221,7 +223,7 @@ export function FocusPage() {
           专注计时
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          记录只属于你，不随小组切换。到点会弹窗并发送系统通知。
+          只统计你自己的时间，到点弹窗提醒。
         </Typography.Paragraph>
       </div>
 
@@ -321,13 +323,18 @@ export function FocusPage() {
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 正在做
               </Typography.Text>
-              <Select
+              <AutoComplete
                 allowClear
-                placeholder="选一个任务（可选）"
+                value={focusTarget}
+                onChange={(value) => setFocusTarget(value)}
+                placeholder="选看板任务，或直接写"
                 style={{ width: 280, maxWidth: '100%' }}
-                value={taskId ?? undefined}
-                onChange={(value) => setTaskId(value ?? null)}
-                options={openTasks.map((task) => ({ value: task.id, label: task.title }))}
+                options={openTasks.map((task) => ({ value: task.title }))}
+                filterOption={(input, option) =>
+                  String(option?.value ?? '')
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
               />
             </div>
 
@@ -377,7 +384,9 @@ export function FocusPage() {
                           minute: '2-digit',
                         })}
                       </span>
-                      <span className="focus-log-task">{task?.title ?? '未关联任务'}</span>
+                      <span className="focus-log-task">
+                        {task?.title ?? session.taskLabel ?? '未关联任务'}
+                      </span>
                       <Tag color="green">{session.minutes} 分钟</Tag>
                     </li>
                   );

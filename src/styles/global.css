@@ -2890,3 +2890,45 @@ html[data-theme='dark'] .aurora-sheen {
   bottom: auto;
   top: 66px;
 }
+
+
+/* ---- 提醒已读态 ---- */
+
+.reminder-list li.is-read {
+  opacity: 0.55;
+}
+
+.reminder-dot.is-read {
+  background: #c4ccd8;
+}
+
+.reminder-read-all {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.alert-unread {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #e5484d;
+  vertical-align: middle;
+}
+
+/* 其他小组有逾期时的小红点 */
+.group-other-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e5484d;
+  flex: none;
+}

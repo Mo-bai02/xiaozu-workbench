@@ -30,15 +30,22 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from './store';
-import {
-  PRIORITY_COLOR,
-  PRIORITY_LABEL,
-  STATUS_LABEL,
-  STATUS_ORDER,
-  type Priority,
-  type Task,
-  type TaskStatus,
-} from './types';
+import { PRIORITY_COLOR, PRIORITY_LABEL, type Priority, type Task, type TaskStatus } from './types';
+
+type ColumnKey = 'todo' | 'overdue' | 'done';
+
+const COLUMNS: Array<{ key: ColumnKey; label: string; color: string }> = [
+  { key: 'todo', label: '待办', color: '#d4a72c' },
+  { key: 'overdue', label: '逾期', color: '#e5484d' },
+  { key: 'done', label: '已完成', color: '#0f9d58' },
+];
+
+/** 逾期由截止时间推导，不是独立状态 */
+function columnOf(task: Task): ColumnKey {
+  if (task.status === 'done') return 'done';
+  if (task.dueAt !== null && task.dueAt < Date.now()) return 'overdue';
+  return 'todo';
+}
 
 const DAY = 86_400_000;
 
@@ -56,9 +63,9 @@ export function BoardPage() {
   const navigate = useNavigate();
   const { tasks, members, moveTask, addTask, updateTask, removeTask } = useWorkspaceStore();
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [overColumn, setOverColumn] = useState<TaskStatus | null>(null);
+  const [overColumn, setOverColumn] = useState<ColumnKey | null>(null);
   const [keyword, setKeyword] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'normal'>('all');
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [form] = Form.useForm();
 
@@ -70,20 +77,28 @@ export function BoardPage() {
   const filtered = useMemo(() => {
     const lower = keyword.trim().toLowerCase();
     return tasks.filter((task) => {
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+      if (priorityFilter === 'high' && task.priority !== 'high') return false;
+      if (priorityFilter === 'normal' && task.priority === 'high') return false;
       if (!lower) return true;
       return task.title.toLowerCase().includes(lower) || task.description.toLowerCase().includes(lower);
     });
   }, [tasks, keyword, priorityFilter]);
 
-  const columns = STATUS_ORDER.map((status) => ({
-    status,
-    items: filtered.filter((task) => task.status === status),
+  const columns = COLUMNS.map((column) => ({
+    ...column,
+    items: filtered.filter((task) => columnOf(task) === column.key),
   }));
 
-  const openNew = (status: TaskStatus) => {
+  const openNew = (column: ColumnKey) => {
     setEditing('new');
-    form.setFieldsValue({ title: '', desc: '', status, priority: 'mid', assigneeId: null, dueAt: null });
+    form.setFieldsValue({
+      title: '',
+      desc: '',
+      status: column === 'done' ? 'done' : 'todo',
+      priority: 'mid',
+      assigneeId: null,
+      dueAt: column === 'overdue' ? dayjs().subtract(1, 'day') : null,
+    });
   };
 
   const openEdit = (task: Task) => {
@@ -143,8 +158,7 @@ export function BoardPage() {
             options={[
               { label: '全部', value: 'all' },
               { label: '高', value: 'high' },
-              { label: '中', value: 'mid' },
-              { label: '低', value: 'low' },
+              { label: '中低', value: 'normal' },
             ]}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openNew('todo')}>
@@ -156,33 +170,29 @@ export function BoardPage() {
       <div className="board">
         {columns.map((column) => (
           <div
-            key={column.status}
-            className={cn('board-column', overColumn === column.status && 'is-over')}
+            key={column.key}
+            className={cn('board-column', overColumn === column.key && 'is-over')}
             onDragOver={(event) => {
               event.preventDefault();
-              setOverColumn(column.status);
+              setOverColumn(column.key);
             }}
-            onDragLeave={() => setOverColumn((prev) => (prev === column.status ? null : prev))}
+            onDragLeave={() => setOverColumn((prev) => (prev === column.key ? null : prev))}
             onDrop={(event) => {
               event.preventDefault();
               const id = event.dataTransfer.getData('text/plain') || draggingId;
-              if (id) moveTask(id, column.status);
+              if (id) moveTask(id, column.key);
               setDraggingId(null);
               setOverColumn(null);
             }}
           >
             <div className="board-head">
               <Space size={6}>
-                <Badge
-                  color={
-                    column.status === 'done' ? '#0f9d58' : column.status === 'doing' ? '#3b6ef6' : '#d4a72c'
-                  }
-                />
-                <span className="board-title">{STATUS_LABEL[column.status]}</span>
+                <Badge color={column.color} />
+                <span className="board-title">{column.label}</span>
                 <span className="board-count">{column.items.length}</span>
               </Space>
               <Tooltip title="在此列新建">
-                <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNew(column.status)} />
+                <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNew(column.key)} />
               </Tooltip>
             </div>
 
@@ -309,7 +319,12 @@ export function BoardPage() {
             <Input.TextArea rows={3} maxLength={200} showCount />
           </Form.Item>
           <Form.Item name="status" label="状态">
-            <Select options={STATUS_ORDER.map((s) => ({ value: s, label: STATUS_LABEL[s] }))} />
+            <Select
+              options={[
+                { value: 'todo', label: '待办' },
+                { value: 'done', label: '已完成' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="priority" label="优先级">
             <Select

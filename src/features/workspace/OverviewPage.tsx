@@ -1,10 +1,8 @@
 import { useMemo } from 'react';
-import { Avatar, Button, Card, Col, Row, Space, Tag, Typography } from 'antd';
+import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd';
 import {
   ArrowUpOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
-  FileTextOutlined,
   RobotOutlined,
   WalletOutlined,
   WarningOutlined,
@@ -14,7 +12,7 @@ import { Bars, Donut } from '@/components/charts';
 import { completionTrend, useWorkspaceStore } from './store';
 import { useExpenseStore } from '@/features/expenses/store';
 import { cstMonthRange } from '@/lib/time';
-import { PRIORITY_COLOR, PRIORITY_LABEL, STATUS_LABEL } from './types';
+import { PRIORITY_COLOR, PRIORITY_LABEL } from './types';
 
 const DAY = 86_400_000;
 
@@ -26,11 +24,9 @@ function relativeTime(ts: number): string {
   return `${Math.floor(diff / DAY)} 天前`;
 }
 
-const ROLE_TEXT: Record<string, string> = { owner: '创建者', admin: '管理员', member: '成员' };
-
 export function OverviewPage() {
   const navigate = useNavigate();
-  const { tasks, members, activities } = useWorkspaceStore();
+  const { tasks, activities } = useWorkspaceStore();
   const expenses = useExpenseStore((s) => s.expenses);
 
   const stats = useMemo(() => {
@@ -65,25 +61,13 @@ export function OverviewPage() {
 
   const statusSlices = useMemo(
     () => [
-      { label: STATUS_LABEL.done, value: stats.done, color: '#0f9d58' },
-      { label: STATUS_LABEL.doing, value: stats.doing, color: '#3b6ef6' },
-      { label: STATUS_LABEL.todo, value: stats.total - stats.done - stats.doing, color: '#d4a72c' },
+      { label: '已完成', value: stats.done, color: '#0f9d58' },
+      { label: '逾期', value: stats.overdue, color: '#e5484d' },
+      { label: '待办', value: Math.max(0, stats.total - stats.done - stats.overdue), color: '#d4a72c' },
     ],
     [stats],
   );
 
-  const workload = useMemo(
-    () =>
-      members
-        .map((member) => ({
-          member,
-          count: tasks.filter((task) => task.assigneeId === member.id && task.status !== 'done').length,
-        }))
-        .sort((a, b) => b.count - a.count),
-    [members, tasks],
-  );
-
-  const maxLoad = Math.max(1, ...workload.map((item) => item.count));
 
   const askAi = () => {
     const doing = tasks.filter((task) => task.status === 'doing').map((task) => task.title);
@@ -117,14 +101,12 @@ export function OverviewPage() {
 
       <Row gutter={[12, 12]}>
         {[
-          { title: '任务总数', value: stats.total, suffix: '个', icon: <ClockCircleOutlined />, tone: '' },
           { title: '完成率', value: stats.rate, suffix: '%', icon: <ArrowUpOutlined />, tone: 'green' },
           { title: '已逾期', value: stats.overdue, suffix: '个', icon: <WarningOutlined />, tone: 'red' },
           { title: '近 7 天完成', value: weekDone, suffix: '个', icon: <CheckCircleOutlined />, tone: 'blue' },
           { title: '本月支出', value: (monthSpend / 100).toFixed(2), suffix: '元', icon: <WalletOutlined />, tone: '' },
-          { title: '成员', value: members.length, suffix: '人', icon: <FileTextOutlined />, tone: '' },
         ].map((item) => (
-          <Col xs={12} sm={8} lg={4} key={item.title}>
+          <Col xs={12} lg={6} key={item.title}>
             <Card size="small" className="stat-card" data-tone={item.tone}>
               <div className="stat-head">
                 <span className="stat-title">{item.title}</span>
@@ -153,31 +135,8 @@ export function OverviewPage() {
       </Row>
 
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-        <Col xs={24} lg={14}>
-          <Card size="small" className="panel" title="成员负载" extra={<Tag>{members.length} 人</Tag>}>
-            <ul className="workload">
-              {workload.map(({ member, count }) => (
-                <li key={member.id}>
-                  <Avatar size={26} style={{ background: 'var(--accent)', fontSize: 12 }}>
-                    {member.displayName.slice(0, 1)}
-                  </Avatar>
-                  <div className="workload-main">
-                    <div className="workload-top">
-                      <span>{member.displayName}</span>
-                      <span className="muted">{ROLE_TEXT[member.role] ?? '成员'}</span>
-                      <b>{count} 项</b>
-                    </div>
-                    <div className="workload-bar">
-                      <span style={{ width: `${(count / maxLoad) * 100}%` }} />
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Col>
 
-        <Col xs={24} lg={10}>
+        <Col xs={24} lg={14}>
           <Card
             size="small"
             className="panel"
@@ -203,9 +162,9 @@ export function OverviewPage() {
             </ul>
           </Card>
         </Col>
-      </Row>
 
-      <Card size="small" className="panel" style={{ marginTop: 12 }} title="即将到期">
+        <Col xs={24} lg={10}>
+          <Card size="small" className="panel" style={{ marginTop: 12 }} title="即将到期">
         <Space direction="vertical" style={{ width: '100%' }} size={6}>
           {tasks
             .filter((task) => task.status !== 'done' && task.dueAt)
@@ -221,7 +180,10 @@ export function OverviewPage() {
               </div>
             ))}
         </Space>
-      </Card>
+          </Card>
+        </Col>
+      </Row>
+
     </div>
   );
 }

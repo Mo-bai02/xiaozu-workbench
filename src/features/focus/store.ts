@@ -7,6 +7,8 @@ export interface FocusSession {
   id: string;
   minutes: number;
   taskId: string | null;
+  /** 自己填的任务名（没绑定看板任务时用） */
+  taskLabel: string | null;
   groupId: string | null;
   endedAt: number;
 }
@@ -17,7 +19,7 @@ interface FocusState {
   breakMinutes: number;
   loading: boolean;
   load: () => Promise<void>;
-  add: (minutes: number, taskId: string | null) => Promise<void>;
+  add: (minutes: number, taskId: string | null, label?: string) => Promise<void>;
   setDurations: (focusMinutes: number, breakMinutes: number) => void;
 }
 
@@ -57,10 +59,10 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     }
   },
 
-  add: async (minutes, taskId) => {
+  add: async (minutes, taskId, label) => {
     await api('/focus', {
       method: 'POST',
-      body: { minutes, taskId, groupId: useGroupStore.getState().activeId },
+      body: { minutes, taskId, label, groupId: useGroupStore.getState().activeId },
     });
     await get().load();
   },

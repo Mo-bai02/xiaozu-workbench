@@ -60,7 +60,7 @@ interface WorkspaceState {
   refresh: () => Promise<void>;
   addTask: (input: TaskInput) => Promise<void>;
   updateTask: (id: string, patch: Partial<TaskInput>) => Promise<void>;
-  moveTask: (id: string, status: TaskStatus) => Promise<void>;
+  moveTask: (id: string, column: 'todo' | 'overdue' | 'done') => Promise<void>;
   removeTask: (id: string) => Promise<void>;
   removeMembers: (ids: string[]) => Promise<void>;
   setMemberRole: (id: string, role: 'admin' | 'member') => Promise<void>;
@@ -135,14 +135,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     await get().load(groupId);
   },
 
-  moveTask: async (id, status) => {
+  moveTask: async (id, column) => {
     const groupId = get().groupId;
     if (!groupId) return;
-    // 先本地改，界面立刻响应；失败再回滚
+    const task = get().tasks.find((item) => item.id === id);
+    if (!task) return;
+
+    // 逾期是算出来的列：拖到逾期 = 把截止时间挪到过去；拖出逾期 = 顺延到今天
+    const patch: { status: TaskStatus; dueAt?: number | null } = {
+      status: column === 'done' ? 'done' : 'todo',
+    };
+    if (column === 'overdue') patch.dueAt = Date.now() - 3_600_000;
+    else if (column === 'todo' && task.dueAt !== null && task.dueAt < Date.now()) {
+      const today = new Date();
+      patch.dueAt = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        18,
+        0,
+        0,
+      ).getTime();
+    }
+
     const snapshot = get().tasks;
-    set({ tasks: snapshot.map((task) => (task.id === id ? { ...task, status } : task)) });
+    set({ tasks: snapshot.map((item) => (item.id === id ? { ...item, ...patch } : item)) });
     try {
-      await api(`/tasks/${id}`, { method: 'PATCH', body: { groupId, patch: { status } } });
+      await api(`/tasks/${id}`, { method: 'PATCH', body: { groupId, patch } });
       await get().load(groupId);
     } catch {
       set({ tasks: snapshot });

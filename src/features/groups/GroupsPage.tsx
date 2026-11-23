@@ -31,7 +31,9 @@ interface AlertTask {
   groupId: string;
   groupName: string;
   assignee: string | null;
-  overdue?: boolean;
+  overdue: boolean;
+  dueToday: boolean;
+  read: boolean;
 }
 
 const ROLE_LABEL: Record<string, { text: string; color: string }> = {
@@ -62,7 +64,7 @@ export function GroupsPage() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [alerts, setAlerts] = useState<{ due: AlertTask[]; starred: AlertTask[] }>({ due: [], starred: [] });
+  const [alerts, setAlerts] = useState<{ items: AlertTask[]; unread: number }>({ items: [], unread: 0 });
   const [alertOpen, setAlertOpen] = useState(false);
   const [form] = Form.useForm<{ name: string }>();
   const [joinForm] = Form.useForm<{ code: string }>();
@@ -73,14 +75,14 @@ export function GroupsPage() {
 
   useEffect(() => {
     let alive = true;
-    void api<{ due: AlertTask[]; starred: AlertTask[] }>('/alerts')
+    void api<{ items: AlertTask[]; unread: number }>('/alerts')
       .then((data) => {
         if (!alive) return;
         setAlerts(data);
         // 每天第一次进来自动弹一次，之后收起成顶部提示条，不打扰
         const key = `ai-console:alerts-seen:${cstDayKey()}`;
         const seen = sessionStorage.getItem(key);
-        if (!seen && (data.due.length > 0 || data.starred.length > 0)) {
+        if (!seen && data.items.length > 0) {
           setAlertOpen(true);
           sessionStorage.setItem(key, '1');
         }
@@ -91,7 +93,9 @@ export function GroupsPage() {
     };
   }, []);
 
-  const alertCount = alerts.due.length + alerts.starred.length;
+  const dueTasks = alerts.items.filter((item) => item.dueAt !== null);
+  const starredTasks = alerts.items.filter((item) => item.important);
+  const alertCount = alerts.items.length;
 
   const enter = (group: GroupSummary) => {
     setActive(group.id);
@@ -137,20 +141,23 @@ export function GroupsPage() {
           <div className="alert-section-title">
             <span className="alert-dot" style={{ background: '#e5484d' }} />
             今天到期与逾期
-            <Tag bordered={false}>{alerts.due.length}</Tag>
+            <Tag bordered={false}>{dueTasks.length}</Tag>
           </div>
-          {alerts.due.length === 0 ? (
+          {dueTasks.length === 0 ? (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               没有今天到期的任务
             </Typography.Text>
           ) : (
             <ul className="alert-list">
-              {alerts.due.map((task) => (
+              {dueTasks.map((task) => (
                 <li key={task.id} onClick={() => void goTo(task)}>
                   <span className={task.overdue ? 'alert-flag is-overdue' : 'alert-flag'}>
                     {task.overdue ? '逾期' : '今天'}
                   </span>
-                  <span className="alert-title">{task.title}</span>
+                  <span className="alert-title">
+                    {!task.read && <i className="alert-unread" />}
+                    {task.title}
+                  </span>
                   <span className="alert-meta">
                     {task.groupName}
                     {task.assignee ? ` · ${task.assignee}` : ''}
@@ -165,15 +172,15 @@ export function GroupsPage() {
           <div className="alert-section-title">
             <span className="alert-dot" style={{ background: '#d4a72c' }} />
             我标记的重点
-            <Tag bordered={false}>{alerts.starred.length}</Tag>
+            <Tag bordered={false}>{starredTasks.length}</Tag>
           </div>
-          {alerts.starred.length === 0 ? (
+          {starredTasks.length === 0 ? (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               还没有标记重点任务，可以在看板卡片菜单里标
             </Typography.Text>
           ) : (
             <ul className="alert-list">
-              {alerts.starred.map((task) => (
+              {starredTasks.map((task) => (
                 <li key={task.id} onClick={() => void goTo(task)}>
                   <ThunderboltFilled className="alert-star" />
                   <span className="alert-title">{task.title}</span>
@@ -188,13 +195,22 @@ export function GroupsPage() {
         </div>
       </div>
     ),
-    [alerts],
+    [dueTasks, starredTasks],
   );
 
   const goTo = async (task: AlertTask) => {
+    void api('/alerts/read', { method: 'POST', body: { ids: [task.id] } });
     setActive(task.groupId);
     setAlertOpen(false);
     navigate('/board');
+  };
+
+  /** 关掉弹窗时把看到的都标成已读 */
+  const dismissAlerts = async () => {
+    setAlertOpen(false);
+    if (alerts.unread === 0) return;
+    await api('/alerts/read', { method: 'POST', body: { all: true } });
+    setAlerts((prev) => ({ items: prev.items.map((item) => ({ ...item, read: true })), unread: 0 }));
   };
 
   return (
@@ -226,8 +242,7 @@ export function GroupsPage() {
             <ThunderboltFilled />
           </span>
           <span className="alert-banner-text">
-            你有 <b>{alertCount}</b> 条提醒：今天到期 {alerts.due.length} 条，重点任务{' '}
-            {alerts.starred.length} 条
+            你有 <b>{alertCount}</b> 条提醒：到期 {dueTasks.length} 条，重点 {starredTasks.length} 条
           </span>
           <span className="alert-banner-more">查看</span>
         </button>
@@ -313,7 +328,7 @@ export function GroupsPage() {
         title="今天的提醒"
         onCancel={() => setAlertOpen(false)}
         footer={
-          <Button type="primary" onClick={() => setAlertOpen(false)}>
+          <Button type="primary" onClick={() => void dismissAlerts()}>
             知道了
           </Button>
         }

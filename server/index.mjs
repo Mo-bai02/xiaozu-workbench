@@ -499,7 +499,100 @@ async function liveSpec(prompt, model) {
   return { spec, usage: data.usage };
 }
 
+
+// ---------------------------------------------------------------------------
+// 固定表单模板：报销 / 请假 / 采购这类常见单据，字段必须是稳定的，
+// 交给模型自由发挥只会每次都长得不一样，还会缺必填项。
+// ---------------------------------------------------------------------------
+const FORM_TEMPLATES = [
+  {
+    id: 'expense',
+    keywords: ['报销', '费用', '发票', '差旅'],
+    match: (text) => /报销|费用|发票|差旅/.test(text),
+    schema: {
+      layout: 'form',
+      title: '费用报销申请单',
+      description: '填写报销事由、金额与凭证信息',
+      submitText: '提交申请',
+      fields: [
+        { name: 'applicant', label: '申请人', type: 'input', required: true, placeholder: '请输入姓名', span: 12 },
+        { name: 'department', label: '所属部门', type: 'select', required: true, options: ['研发部', '产品设计部', '市场部', '职能中心'], span: 12 },
+        { name: 'category', label: '费用类型', type: 'select', required: true, options: ['差旅费', '交通费', '餐饮费', '办公用品', '其他'], span: 12 },
+        { name: 'amount', label: '报销金额（元）', type: 'number', required: true, placeholder: '请输入金额', span: 12 },
+        { name: 'spentAt', label: '费用发生日期', type: 'date', required: true, span: 12 },
+        { name: 'invoiceCount', label: '发票张数', type: 'number', required: false, placeholder: '选填', span: 12 },
+        { name: 'hasInvoice', label: '是否已附发票', type: 'switch', required: false, span: 12 },
+        { name: 'urgent', label: '是否加急', type: 'switch', required: false, span: 12 },
+        { name: 'reason', label: '报销事由', type: 'textarea', required: true, placeholder: '说明费用用途与明细', maxLength: 500, span: 24 },
+      ],
+    },
+  },
+  {
+    id: 'leave',
+    keywords: ['请假', '休假', '调休'],
+    match: (text) => /请假|休假|调休/.test(text),
+    schema: {
+      layout: 'form',
+      title: '请假申请单',
+      description: '填写请假类型、时间与事由',
+      submitText: '提交申请',
+      fields: [
+        { name: 'applicant', label: '申请人', type: 'input', required: true, placeholder: '请输入姓名', span: 12 },
+        { name: 'department', label: '所属部门', type: 'select', required: true, options: ['研发部', '产品设计部', '市场部', '职能中心'], span: 12 },
+        { name: 'type', label: '请假类型', type: 'select', required: true, options: ['事假', '病假', '年假', '调休'], span: 12 },
+        { name: 'days', label: '请假天数', type: 'number', required: true, placeholder: '请输入天数', span: 12 },
+        { name: 'startAt', label: '开始日期', type: 'date', required: true, span: 12 },
+        { name: 'endAt', label: '结束日期', type: 'date', required: true, span: 12 },
+        { name: 'handover', label: '工作交接人', type: 'input', required: false, placeholder: '选填', span: 12 },
+        { name: 'reason', label: '请假事由', type: 'textarea', required: true, placeholder: '简要说明原因', maxLength: 300, span: 24 },
+      ],
+    },
+  },
+  {
+    id: 'purchase',
+    keywords: ['采购', '申购', '买'],
+    match: (text) => /采购|申购|购买/.test(text),
+    schema: {
+      layout: 'form',
+      title: '采购申请单',
+      description: '填写采购物品、数量与预算',
+      submitText: '提交申请',
+      fields: [
+        { name: 'applicant', label: '申请人', type: 'input', required: true, placeholder: '请输入姓名', span: 12 },
+        { name: 'department', label: '所属部门', type: 'select', required: true, options: ['研发部', '产品设计部', '市场部', '职能中心'], span: 12 },
+        { name: 'item', label: '物品名称', type: 'input', required: true, placeholder: '如：显示器', span: 12 },
+        { name: 'quantity', label: '数量', type: 'number', required: true, placeholder: '请输入数量', span: 12 },
+        { name: 'budget', label: '预算（元）', type: 'number', required: true, placeholder: '请输入预算', span: 12 },
+        { name: 'neededAt', label: '期望到货日期', type: 'date', required: false, span: 12 },
+        { name: 'reason', label: '采购理由', type: 'textarea', required: true, placeholder: '说明用途', maxLength: 300, span: 24 },
+      ],
+    },
+  },
+];
+
+/** 命中模板就直接返回，不调模型 —— 结果稳定、字段必填项齐全 */
+function matchTemplate(prompt) {
+  return FORM_TEMPLATES.find((template) => template.match(prompt)) ?? null;
+}
+
 async function handleGenerate(req, res) {
+  const body = await readJson(req);
+  const prompt = String(body.prompt ?? '');
+
+  const template = matchTemplate(prompt);
+  if (template) {
+    res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        schema: template.schema,
+        mock: false,
+        template: template.id,
+        model: 'template',
+      }),
+    );
+    return;
+  }
+
   const visitor = getVisitor(req);
   if (!allowRequest(visitor)) {
     res.writeHead(429, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
@@ -508,8 +601,7 @@ async function handleGenerate(req, res) {
   }
 
   const startedAt = Date.now();
-  const { prompt = '', model: modelId } = await readJson(req);
-  const model = resolveModel(modelId);
+  const model = resolveModel(body.model);
   const record = { status: 'success', error: '', promptTokens: 0, completionTokens: 0 };
 
   try {

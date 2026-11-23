@@ -32,6 +32,7 @@ import {
   listMembers,
   listTasks,
   membership,
+  markAlertsRead,
   myAlerts,
   publicUser,
   reminders,
@@ -328,6 +329,14 @@ export async function handleAppApi(req, res, url) {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;
       return json(res, 200, myAlerts(auth.user.id)), true;
+    }
+
+    if (path === '/api/alerts/read' && req.method === 'POST') {
+      const auth = requireUser(req);
+      if (auth.error) return bad(res, auth.error, auth.status), true;
+      const body = await readBody(req);
+      const count = markAlertsRead(auth.user.id, body.all ? 'all' : body.ids);
+      return json(res, 200, { ok: true, count }), true;
     }
 
     if (path === '/api/reminders' && req.method === 'GET') {

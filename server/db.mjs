@@ -110,6 +110,26 @@ CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id, spent_at);
 CREATE INDEX IF NOT EXISTS idx_focus_user_day ON focus_sessions(user_id, ended_at);
 `);
 
+// 看板不再区分「进行中」，历史数据并到待办
+db.exec("UPDATE tasks SET status = 'todo' WHERE status = 'doing'");
+
+// 专注记录支持自定义任务名（不选看板任务时自己填）
+try {
+  db.exec('ALTER TABLE focus_sessions ADD COLUMN task_label TEXT');
+} catch {
+  /* 已经有了 */
+}
+
+// 提醒的已读状态：按「用户 + 任务」记，同一任务在不同人眼里各自已读
+db.exec(`
+CREATE TABLE IF NOT EXISTS alert_reads (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_id TEXT NOT NULL,
+  read_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, task_id)
+);
+`);
+
 // 老库没有 important 列，启动时补一次（SQLite 不支持 IF NOT EXISTS 加列）
 try {
   db.exec('ALTER TABLE tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0');
@@ -449,7 +469,8 @@ export function deleteExpense(id, groupId, userId, canManage) {
 export function listFocus(userId, start, end) {
   return db
     .prepare(
-      `SELECT id, minutes, task_id AS taskId, group_id AS groupId, ended_at AS endedAt
+      `SELECT id, minutes, task_id AS taskId, task_label AS taskLabel,
+              group_id AS groupId, ended_at AS endedAt
        FROM focus_sessions WHERE user_id = ? AND ended_at >= ? AND ended_at < ?
        ORDER BY ended_at DESC`,
     )
@@ -459,8 +480,17 @@ export function listFocus(userId, start, end) {
 export function addFocus(userId, groupId, input) {
   const id = uid('f');
   db.prepare(
-    'INSERT INTO focus_sessions (id, user_id, group_id, task_id, minutes, ended_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(id, userId, groupId ?? null, input.taskId ?? null, Math.max(1, Number(input.minutes) || 25), now());
+    `INSERT INTO focus_sessions (id, user_id, group_id, task_id, task_label, minutes, ended_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    userId,
+    groupId ?? null,
+    input.taskId ?? null,
+    String(input.label ?? '').slice(0, 40) || null,
+    Math.max(1, Number(input.minutes) || 25),
+    now(),
+  );
   return id;
 }
 
@@ -487,43 +517,73 @@ export function reminders(userId) {
 }
 
 /**
- * 登录后的提醒：我所在小组里，今天到期或已逾期的任务，以及被标为重点的任务。
- * 按小组名带上，用户才知道该去哪个组处理。
+ * 提醒只包含两类：快到期的高优先级任务，以及被标为重点的任务。
+ * 普通待办不进提醒 —— 任务一多，什么都提醒等于什么都没提醒。
  */
 export function myAlerts(userId) {
   const { start, end } = cstDayRange();
 
-  const due = db
+  const rows = db
     .prepare(
       `SELECT t.id, t.title, t.due_at AS dueAt, t.priority, t.important,
-              g.id AS groupId, g.name AS groupName, u.display_name AS assignee
+              g.id AS groupId, g.name AS groupName,
+              u.display_name AS assignee,
+              (ar.task_id IS NOT NULL) AS isRead
        FROM tasks t
        JOIN groups g ON g.id = t.group_id
        JOIN group_members m ON m.group_id = g.id AND m.user_id = ?
        LEFT JOIN users u ON u.id = t.assignee_id
-       WHERE t.status != 'done' AND t.due_at IS NOT NULL AND t.due_at < ?
-       ORDER BY t.due_at ASC
-       LIMIT 10`,
-    )
-    .all(userId, end)
-    .map((row) => ({ ...row, important: Boolean(row.important), overdue: row.dueAt < start }));
-
-  const starred = db
-    .prepare(
-      `SELECT t.id, t.title, t.due_at AS dueAt, t.priority, t.important,
-              g.id AS groupId, g.name AS groupName, u.display_name AS assignee
-       FROM tasks t
-       JOIN groups g ON g.id = t.group_id
-       JOIN group_members m ON m.group_id = g.id AND m.user_id = ?
-       LEFT JOIN users u ON u.id = t.assignee_id
-       WHERE t.status != 'done' AND t.important = 1
+       LEFT JOIN alert_reads ar ON ar.task_id = t.id AND ar.user_id = ?
+       WHERE t.status != 'done'
+         AND (
+           (t.due_at IS NOT NULL AND t.due_at < ? AND (t.priority = 'high' OR t.important = 1))
+           OR t.important = 1
+         )
        ORDER BY t.due_at IS NULL, t.due_at ASC
-       LIMIT 10`,
+       LIMIT 30`,
     )
-    .all(userId)
-    .map((row) => ({ ...row, important: true, overdue: false }));
+    .all(userId, userId, end);
 
-  return { due, starred };
+  const items = rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    dueAt: row.dueAt,
+    priority: row.priority,
+    important: Boolean(row.important),
+    groupId: row.groupId,
+    groupName: row.groupName,
+    assignee: row.assignee,
+    overdue: row.dueAt !== null && row.dueAt < start,
+    dueToday: row.dueAt !== null && row.dueAt >= start && row.dueAt < end,
+    read: Boolean(row.isRead),
+  }));
+
+  return {
+    items,
+    unread: items.filter((item) => !item.read).length,
+  };
+}
+
+/** 标记已读：传 ids 就标这些，传 all 就全标 */
+export function markAlertsRead(userId, ids) {
+  const ts = now();
+  const insert = db.prepare(
+    'INSERT OR REPLACE INTO alert_reads (user_id, task_id, read_at) VALUES (?, ?, ?)',
+  );
+
+  if (ids === 'all') {
+    // 用和提醒列表相同的口径，避免「全部已读」漏掉一部分
+    const { items } = myAlerts(userId);
+    for (const item of items) insert.run(userId, item.id, ts);
+    return items.length;
+  }
+
+  let count = 0;
+  for (const id of Array.isArray(ids) ? ids : []) {
+    insert.run(userId, String(id), ts);
+    count += 1;
+  }
+  return count;
 }
 
 function safeJson(text, fallback) {

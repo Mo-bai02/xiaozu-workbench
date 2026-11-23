@@ -48,7 +48,7 @@ export function SettingsPage() {
           设置与数据
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          账号里的数据存在服务端，唯一要注意的是登录状态保存在本机。
+          数据在服务端，登录状态在本机。
         </Typography.Paragraph>
       </div>
 
@@ -60,7 +60,7 @@ export function SettingsPage() {
                 用户名 <b>@{user?.username}</b> · 昵称 <b>{user?.displayName}</b>
               </span>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                任务、笔记、账目都存在服务端数据库，换设备登录就能看到。
+                换设备登录即可看到。
               </Typography.Text>
             </Space>
           </Card>
@@ -97,8 +97,8 @@ export function SettingsPage() {
               style={{ marginTop: 12 }}
               type="info"
               showIcon
-              message="只包含本机配置"
-              description="主题、模型选择、专注时长这类偏好。业务数据在服务端，不走这个文件。"
+              message="只包含本机偏好"
+              description="主题、模型、专注时长。任务和笔记不在这里。"
             />
           </Card>
 
@@ -138,7 +138,7 @@ export function SettingsPage() {
         <Col xs={24} lg={10}>
           <Card size="small" className="panel" title="危险操作">
             <Typography.Paragraph type="secondary" style={{ fontSize: 12.5 }}>
-              只清本机缓存：登录状态、主题、模型偏好、笔记分享映射。服务端数据不受影响。
+              清掉登录状态与本机偏好，服务端数据不动。
             </Typography.Paragraph>
             <Popconfirm
               title="确定清空全部本地数据？"
@@ -163,10 +163,10 @@ export function SettingsPage() {
                 <Tag color="blue">v1.1</Tag> 10 个模块 · React 18 + TS + Vite + antd
               </span>
               <Typography.Text type="secondary">
-                分享链接在服务重启后失效。原始笔记不会上传。
+                分享链接在服务重启后失效。
               </Typography.Text>
               <Typography.Text type="secondary">
-                AI 调用的 Key 只在 Node 进程里，不会下发到浏览器。
+                模型 Key 只在服务端。
               </Typography.Text>
             </Space>
           </Card>

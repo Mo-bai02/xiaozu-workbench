@@ -81,15 +81,18 @@ const MENU_ITEMS = [
   { type: 'group' as const, label: '其他', children: NAV.slice(9) },
 ];
 
-interface ReminderItem {
+interface AlertItem {
   id: string;
   title: string;
-  dueAt: number;
+  dueAt: number | null;
   priority: 'low' | 'mid' | 'high';
-  status: string;
+  important: boolean;
   groupId: string;
   groupName: string;
+  assignee: string | null;
   overdue: boolean;
+  dueToday: boolean;
+  read: boolean;
 }
 
 export function AppShell() {
@@ -116,8 +119,13 @@ export function AppShell() {
   const activeId = useGroupStore((s) => s.activeId);
   const loaded = useGroupStore((s) => s.loaded);
   const activeGroup = groups.find((group) => group.id === activeId) ?? null;
+  /** 其他小组的逾期数：不切换也能看到别处有火 */
+  const otherOverdue = groups
+    .filter((group) => group.id !== activeId)
+    .reduce((sum, group) => sum + group.overdue, 0);
 
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [unread, setUnread] = useState(0);
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const healthMeta = useMemo(() => {
@@ -156,8 +164,10 @@ export function AppShell() {
     let alive = true;
     const load = async () => {
       try {
-        const data = await api<{ reminders: ReminderItem[] }>('/reminders');
-        if (alive) setReminders(data.reminders);
+        const data = await api<{ items: AlertItem[]; unread: number }>('/alerts');
+        if (!alive) return;
+        setAlerts(data.items);
+        setUnread(data.unread);
       } catch {
         /* 掉线时静默 */
       }
@@ -169,6 +179,17 @@ export function AppShell() {
       window.clearInterval(timer);
     };
   }, [activeId]);
+
+  const markRead = async (ids: string[] | 'all') => {
+    await api('/alerts/read', { method: 'POST', body: ids === 'all' ? { all: true } : { ids } });
+    if (ids === 'all') {
+      setAlerts((prev) => prev.map((item) => ({ ...item, read: true })));
+      setUnread(0);
+      return;
+    }
+    setAlerts((prev) => prev.map((item) => (ids.includes(item.id) ? { ...item, read: true } : item)));
+    setUnread((prev) => Math.max(0, prev - ids.length));
+  };
 
   const menu = (
     <Menu
@@ -196,21 +217,37 @@ export function AppShell() {
 
   const reminderContent = (
     <div className="reminder-pop">
-      {reminders.length === 0 ? (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="今天没有到期任务" />
+      {alerts.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有需要提醒的任务" />
       ) : (
-        <ul className="reminder-list">
-          {reminders.map((item) => (
-            <li key={item.id} onClick={() => navigate('/board')}>
-              <span className={item.overdue ? 'reminder-dot is-overdue' : 'reminder-dot'} />
-              <span className="reminder-title">{item.title}</span>
-              <span className="reminder-meta">
-                {item.groupName} · {formatCst(item.dueAt)}
-                {item.overdue ? ' 已逾期' : ' 今天'}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="reminder-list">
+            {alerts.map((item) => (
+              <li
+                key={item.id}
+                className={item.read ? 'is-read' : ''}
+                onClick={() => {
+                  void markRead([item.id]);
+                  navigate('/board');
+                }}
+              >
+                <span className={item.read ? 'reminder-dot is-read' : item.overdue ? 'reminder-dot is-overdue' : 'reminder-dot'} />
+                <span className="reminder-title">{item.title}</span>
+                <span className="reminder-meta">
+                  {item.groupName}
+                  {item.dueAt ? ` · ${formatCst(item.dueAt)}` : ''}
+                  {item.overdue ? ' 已逾期' : item.dueToday ? ' 今天' : ''}
+                  {item.important ? ' · 重点' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {unread > 0 && (
+            <button type="button" className="reminder-read-all" onClick={() => void markRead('all')}>
+              全部标为已读
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -260,6 +297,7 @@ export function AppShell() {
             >
               <TeamOutlined />
               <span className="group-switch-name">{activeGroup?.name ?? '选择小组'}</span>
+              {otherOverdue > 0 && <span className="group-other-dot" title="其他小组有逾期任务" />}
               <DownOutlined className="group-switch-caret" />
             </Button>
           </Space>
@@ -272,7 +310,7 @@ export function AppShell() {
               content={reminderContent}
               arrow={false}
             >
-              <Badge count={reminders.length} size="small" offset={[-2, 4]}>
+              <Badge count={unread} size="small" offset={[-2, 4]}>
                 <Button size="small" type="text" aria-label="任务提醒" icon={<BellOutlined />} />
               </Badge>
             </Popover>

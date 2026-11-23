@@ -157,7 +157,7 @@ export function NotesPage() {
             笔记
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            只属于你，不随小组切换。支持 Markdown，停止输入自动保存。
+            只属于你，支持 Markdown，自动保存。
           </Typography.Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={addNote}>

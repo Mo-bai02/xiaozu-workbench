@@ -147,8 +147,10 @@ export async function generateSpec(prompt: string, signal?: AbortSignal, model?:
   });
   if (!response.ok) throw new Error(`生成失败：${response.status}`);
 
+  // 服务端外层包了 { schema, mock, model }，这里兼容两种形状
   const raw = (await response.json()) as unknown;
-  const result = validateSpec(raw);
+  const payload = raw as { schema?: unknown } | null;
+  const result = validateSpec(payload?.schema ?? raw);
   if (!result.ok || !result.spec) throw new Error(`模型返回的 Schema 不合法：${result.error}`);
   return result.spec;
 }
