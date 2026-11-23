@@ -1,9 +1,3 @@
-/**
- * 全量数据备份。
- *
- * 直接按 localStorage 的 key 读 —— 不去碰各个 store 的内部结构。
- * 好处：新增模块时只要把 key 加进列表，导出/导入自动带上，不用改两个地方。
- */
 const KEYS = [
   'ai-console:workspace',
   'ai-console:notes',
@@ -49,7 +43,6 @@ export function downloadBackup(): void {
   URL.revokeObjectURL(url);
 }
 
-/** 导入前先校验结构，避免把乱七八糟的 JSON 写进存储导致白屏 */
 export async function importBackup(file: File): Promise<{ keys: number }> {
   const text = await file.text();
   let parsed: unknown;
@@ -74,7 +67,6 @@ export async function importBackup(file: File): Promise<{ keys: number }> {
 
 export function clearAll(): void {
   for (const key of KEYS) localStorage.removeItem(key);
-  // 登录态是本机的，清缓存必须一起清掉，否则等于没退
   localStorage.removeItem('ai-console:token');
   localStorage.removeItem('ai-console:visitor');
   localStorage.removeItem('ai-console:active-group');

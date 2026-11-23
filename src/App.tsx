@@ -7,10 +7,6 @@ import { useAuthStore } from '@/store/auth';
 import { useGroupStore } from '@/store/group';
 import { useUIStore } from '@/store/ui';
 
-/**
- * 路由级懒加载：每个页面单独一个 chunk。
- * 这是"脚手架"该给的默认值 —— 新页面只要 lazy 一下，就自动拆包。
- */
 const ChatPage = lazy(() => import('@/features/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const OverviewPage = lazy(() => import('@/features/workspace/OverviewPage').then((m) => ({ default: m.OverviewPage })));
 const BoardPage = lazy(() => import('@/features/workspace/BoardPage').then((m) => ({ default: m.BoardPage })));
@@ -37,7 +33,6 @@ function PageFallback() {
   );
 }
 
-/** 登录守卫：没登录一律回登录页；登录态还没拉回来时先别闪 */
 function RequireAuth() {
   const user = useAuthStore((state) => state.user);
   const ready = useAuthStore((state) => state.ready);
@@ -62,7 +57,6 @@ export function App() {
     void bootstrap();
   }, [bootstrap]);
 
-  // 登录后拉一次小组列表；退出登录时清空，避免换账号还看到上一个人的数据
   useEffect(() => {
     if (user) void fetchGroups();
     else useGroupStore.setState({ groups: [], loaded: false, activeId: null });
@@ -92,7 +86,6 @@ export function App() {
       <AntApp>
         <Suspense fallback={<PageFallback />}>
           <Routes>
-            {/* 分享页在 AppShell 之外：外部访客不该看到工作台的导航与数据入口 */}
             <Route path="/share/:id" element={<SharePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<RequireAuth />}>

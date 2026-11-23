@@ -2,14 +2,9 @@ import { env } from '@/env';
 import { getToken } from './http';
 import { getVisitorId } from './visitor';
 
-/**
- * 统一的请求入口：自动带上访客标识。
- * 所有 /api 请求都走这里，避免某个地方漏了 header 导致日志串到 anonymous 分组。
- */
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('X-Visitor-Id', getVisitorId());
-  // 带上登录态：调用日志按用户落库，没有这个头就只会写进匿名分组
   const token = getToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
   return fetch(`${env.apiBase}${path}`, { ...init, headers });
@@ -41,7 +36,6 @@ export async function clearLogs(): Promise<void> {
   await apiFetch('/logs', { method: 'DELETE' });
 }
 
-
 export interface SharedNote {
   id: string;
   title: string;
@@ -50,7 +44,6 @@ export interface SharedNote {
   views: number;
 }
 
-/** 把一条笔记上传成只读分享，返回分享 id */
 export async function createShare(note: { title: string; content: string }): Promise<string> {
   const res = await apiFetch('/shares', {
     method: 'POST',

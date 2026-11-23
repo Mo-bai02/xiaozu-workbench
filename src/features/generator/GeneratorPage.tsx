@@ -50,7 +50,6 @@ export function GeneratorPage() {
     }
   };
 
-  // ?demo=1：演示模式下自动生成一次，方便截图与录屏
   useEffect(() => {
     if (demoStarted.current) return;
     if (new URLSearchParams(window.location.search).get('demo') !== '1') return;

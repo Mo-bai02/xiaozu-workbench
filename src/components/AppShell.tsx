@@ -119,7 +119,6 @@ export function AppShell() {
   const activeId = useGroupStore((s) => s.activeId);
   const loaded = useGroupStore((s) => s.loaded);
   const activeGroup = groups.find((group) => group.id === activeId) ?? null;
-  /** 其他小组的逾期数：不切换也能看到别处有火 */
   const otherOverdue = groups
     .filter((group) => group.id !== activeId)
     .reduce((sum, group) => sum + group.overdue, 0);
@@ -146,19 +145,16 @@ export function AppShell() {
     return match?.key ?? '/overview';
   }, [location.pathname]);
 
-  // 没有小组时先去选小组，不然所有页面都是空的
   useEffect(() => {
     if (loaded && groups.length === 0) navigate('/groups', { replace: true });
   }, [loaded, groups.length, navigate]);
 
-  // 小组切换 → 重新拉任务/成员/账目
   useEffect(() => {
     if (!activeId) return;
     void useWorkspaceStore.getState().load(activeId);
     void useExpenseStore.getState().load(useExpenseStore.getState().month);
   }, [activeId]);
 
-  // 任务提醒：进来拉一次，之后每分钟刷新
   useEffect(() => {
     if (!activeId) return;
     let alive = true;
@@ -169,7 +165,6 @@ export function AppShell() {
         setAlerts(data.items);
         setUnread(data.unread);
       } catch {
-        /* 掉线时静默 */
       }
     };
     void load();

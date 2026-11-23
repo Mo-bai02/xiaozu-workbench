@@ -138,7 +138,7 @@ export function SettingsPage() {
         <Col xs={24} lg={10}>
           <Card size="small" className="panel" title="危险操作">
             <Typography.Paragraph type="secondary" style={{ fontSize: 12.5 }}>
-              清掉登录状态与本机偏好，服务端数据不动。
+              清掉登录状态和本机偏好。
             </Typography.Paragraph>
             <Popconfirm
               title="确定清空全部本地数据？"

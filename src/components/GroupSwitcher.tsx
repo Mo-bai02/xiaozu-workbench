@@ -5,10 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { useGroupStore } from '@/store/group';
 import { groupLight } from '@/features/groups/GroupsPage';
 
-/**
- * 小组切换器：中间弹一层，像命令面板一样，不用离开当前页面。
- * 只看和切；创建/加入这类低频操作再跳去完整页面。
- */
 export function GroupSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const groups = useGroupStore((s) => s.groups);

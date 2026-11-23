@@ -54,7 +54,6 @@ export function ExpensesPage() {
     [members],
   );
 
-  // 账目由服务端按北京时间的自然月返回，这里只负责切换月份时重新拉
   useEffect(() => {
     void loadExpenses(month.format('YYYY-MM'));
   }, [loadExpenses, month]);

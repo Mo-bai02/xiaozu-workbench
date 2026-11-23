@@ -4,13 +4,6 @@ interface Slice {
   color: string;
 }
 
-/**
- * 手写 SVG 环形图。
- *
- * 为什么不用 ECharts / Chart.js：
- * 这里只需要两个图，引一个 300KB+ 的库，首屏成本和"能不能改"都不划算。
- * 用 stroke-dasharray 画环，30 行就够，还能精确控制动画与配色。
- */
 export function Donut({
   data,
   size = 148,
@@ -91,13 +84,6 @@ export function Donut({
   );
 }
 
-/**
- * 柱状图：用 CSS 而不是 SVG 画。
- *
- * 原因是文字：SVG 缩放会把字号一起拉变形，要么糊要么大小失控；
- * 而"数字必须清晰可读"在图表里优先级最高。柱子用 div 画，标签就是正常 DOM。
- * （环形图相反 —— 它没有文字缩放问题，SVG 的 stroke-dasharray 反而最省事。）
- */
 export function Bars({
   data,
   height = 150,

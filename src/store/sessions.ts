@@ -35,7 +35,6 @@ function persist(sessions: Session[], activeId: string): void {
   try {
     localStorage.setItem(KEY, JSON.stringify({ sessions, activeId }));
   } catch {
-    /* 空间不足或隐私模式：忽略，内存里仍然可用 */
   }
 }
 
@@ -54,7 +53,6 @@ function restore(): { sessions: Session[]; activeId: string } {
       }
     }
   } catch {
-    /* 损坏的数据直接丢弃，不要因为它白屏 */
   }
   const first = newSession();
   return { sessions: [first], activeId: first.id };
@@ -62,12 +60,6 @@ function restore(): { sessions: Session[]; activeId: string } {
 
 const initial = typeof window === 'undefined' ? { sessions: [newSession()], activeId: '' } : restore();
 
-/**
- * 会话列表。
- *
- * 存储策略：消息只在**流式结束**后写盘（由页面控制），
- * 不在每个 token 上写 localStorage —— 那是同步 IO，会直接卡住主线程。
- */
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: initial.sessions,
   activeId: initial.activeId || initial.sessions[0]?.id || '',
@@ -117,7 +109,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => {
       const sessions = state.sessions.map((s) => {
         if (s.id !== id) return s;
-        // 会话标题取第一条用户消息，之后不再改（避免回答时标题乱跳）
         const firstUser = messages.find((m) => m.role === 'user');
         const title =
           s.title === DEFAULT_TITLE && firstUser ? firstUser.content.slice(0, 18) : s.title;

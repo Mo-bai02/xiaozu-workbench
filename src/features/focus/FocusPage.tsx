@@ -50,18 +50,9 @@ function beep(times = 2): void {
       oscillator.stop(start + 0.34);
     }
   } catch {
-    /* 静音或浏览器不支持 */
   }
 }
 
-/**
- * 独立线程的计时器。
- *
- * 主线程的 setInterval 在标签页不可见时会被浏览器节流（Chrome 可能压到每分钟一次），
- * 计时精度靠"结束时间戳"已经解决了，但"到点提醒"仍会被推迟。
- * 把 tick 放进 Worker，节流影响明显更小；再配合 visibilitychange 主动对时，基本够用。
- * 注意：这不能保证 100% 准时 —— 浏览器把整个页面冻结时，任何 JS 都跑不了。
- */
 function createTicker(onTick: () => void): () => void {
   try {
     const source = `let t=null;onmessage=function(e){if(e.data==='start'){if(t)clearInterval(t);t=setInterval(function(){postMessage('tick')},500)}else if(e.data==='stop'){clearInterval(t);t=null}}`;
@@ -107,7 +98,6 @@ export function FocusPage() {
       try {
         new Notification(title, { body, tag: 'ai-console-focus' });
       } catch {
-        /* 某些环境不允许构造，忽略 */
       }
     },
     [],
@@ -130,7 +120,6 @@ export function FocusPage() {
     }
   }, [add, focusMinutes, focusTarget, mode, notify, targetTask]);
 
-  /** 用结束时间戳算剩余，避免后台节流导致走慢 */
   const syncRemaining = useCallback(() => {
     if (deadlineRef.current === null) return;
     const left = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
@@ -150,10 +139,8 @@ export function FocusPage() {
       stopTickerRef.current?.();
       stopTickerRef.current = null;
     };
-    // 只在开始/暂停时重建 ticker；remaining 由 ticker 自己维护
   }, [running]);
 
-  // 页面重新可见时立刻对一次时（后台被冻结后的补偿）
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible' && running) syncRemaining();

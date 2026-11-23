@@ -1,15 +1,4 @@
-/**
- * 密码强度评估。
- *
- * 刻意不追求"学术正确"，只要三件事：
- * 1. 能给出可解释的分档（弱/一般/强/很强）
- * 2. 能告诉用户缺什么，而不是只甩一句"密码太弱"
- * 3. 常见弱密码直接降档 —— 满足长度和字符集也没用
- *
- * 真正的安全靠服务端：目前只强制 6 位；强度提示是引导，不是门槛。
- */
 export interface PasswordStrength {
-  /** 0-4，0 表示还没输入 */
   score: 0 | 1 | 2 | 3 | 4;
   label: string;
   color: string;
@@ -59,7 +48,6 @@ export function passwordStrength(password: string): PasswordStrength {
   if (symbol) score += 1;
   else tips.push(SYMBOL_TIP);
 
-  // 重复字符或顺序字符，直接扣一档
   if (/(.)\1{2,}/.test(password) || /012|123|234|345|456|567|678|789|abc|qwe/i.test(password)) {
     score -= 1;
     tips.push(REPEAT_TIP);

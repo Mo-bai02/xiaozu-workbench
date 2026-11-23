@@ -3,17 +3,12 @@ import { apiFetch } from './api';
 
 export interface Health {
   status: string;
-  /** live = 已接入模型；mock = 服务端未配置 Key，走内置模拟 */
   mode: 'live' | 'mock' | 'offline' | 'loading';
   model?: string;
 }
 
 let cached: Health | null = null;
 
-/**
- * 服务端模式探测。
- * 前端不再自己判断"是不是 mock"——问一次 /api/health，服务端说了算。
- */
 export function useHealth(): Health {
   const [health, setHealth] = useState<Health>(cached ?? { status: 'loading', mode: 'loading' });
 

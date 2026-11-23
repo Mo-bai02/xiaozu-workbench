@@ -17,20 +17,12 @@ export interface ChatItem {
 
 export interface LiveMetrics {
   chars: number;
-  /** React 实际提交的渲染次数 —— 量化"卡不卡"的指标 */
   renders: number;
   ttftMs: number;
 }
 
 const EMPTY_METRICS: LiveMetrics = { chars: 0, renders: 0, ttftMs: 0 };
 
-/**
- * 对话状态机。
- *
- * 关键点都在「怎么把 token 变成 UI」上：
- * - 逐 token setState：一次流式回答要提交几百次渲染，移动端直接掉帧；
- * - rAF 批量：把同一帧内到达的 token 合并成一次提交，渲染次数 ≈ 帧数。
- */
 export function useChat() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -94,9 +86,9 @@ export function useChat() {
 
       bufferRef.current += text;
       if (rafRef.current === null) {
+        // 后台标签页 rAF 会暂停，加 120ms 定时器兜底
         const frameId = requestAnimationFrame(flush);
         rafRef.current = frameId;
-        // 后台标签页里 rAF 会被暂停，用 120ms 兜底，避免文字"冻住"
         timeoutRef.current = window.setTimeout(() => {
           if (rafRef.current === frameId) {
             cancelAnimationFrame(frameId);
@@ -108,7 +100,6 @@ export function useChat() {
     [flush, patchLast],
   );
 
-  /** 真正跑一次请求：history 是"喂给模型的历史"，addUser 决定要不要在界面上追加用户气泡 */
   const run = useCallback(
     async (text: string, history: ChatMessage[], addUser: boolean) => {
       if (streaming) return;
@@ -175,7 +166,6 @@ export function useChat() {
     [messages, run, streaming],
   );
 
-  /** 重新生成最后一条回答：去掉它，用同样的上下文再问一次 */
   const regenerate = useCallback(() => {
     if (streaming) return;
     const lastUserIndex = [...messages].map((m) => m.role).lastIndexOf('user');
@@ -203,7 +193,6 @@ export function useChat() {
     setMetrics(EMPTY_METRICS);
   }, [streaming]);
 
-  /** 切换到另一个会话时，把历史消息灌进来（不动正在跑的流） */
   const loadMessages = useCallback(
     (items: ChatItem[]) => {
       if (streaming) return;
@@ -213,11 +202,6 @@ export function useChat() {
     [streaming],
   );
 
-  /**
-   * 只在页面真正卸载时中断请求，而**不在组件卸载时**中断。
-   * 原因：React StrictMode 在开发环境会「挂载 → 卸载 → 再挂载」，
-   * 如果在 effect 清理里 abort，开发环境第一个请求会被自己掐断（表现为已停止）。
-   */
   useEffect(() => {
     const onPageHide = () => abortRef.current?.abort();
     window.addEventListener('pagehide', onPageHide);

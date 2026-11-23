@@ -1,17 +1,5 @@
-/**
- * 图形验证码。
- *
- * 为什么自己做而不是引库：只需要 4 个字符 + 一点干扰，几十行就够，
- * 而且省掉一个依赖。真正的防刷还得靠 IP 限流，验证码只挡脚本的"顺手注册"。
- *
- * 设计：
- * - 服务端生成 4 位字符，存内存 Map（id → 文本 + 过期时间），5 分钟有效
- * - 一次性：校验成功或失败都会删除，防止拿同一个码反复试
- * - 返回 base64 的 SVG，前端直接 <img src> 用，不用处理转义
- */
 import { randomBytes } from 'node:crypto';
 
-/** 去掉容易混淆的 0/O/1/l/I */
 const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const TTL = 5 * 60 * 1000;
 const MAX_ENTRIES = 500;
@@ -38,7 +26,6 @@ function buildSvg(text) {
     return `<text x="${x}" y="${y}" font-size="${size}" font-family="Georgia, serif" font-weight="700" fill="#3b4658" transform="rotate(${rotate} ${x} ${y})">${char}</text>`;
   });
 
-  // 干扰线：两条细的 + 若干点，够让 OCR 难受，又不会糊到人眼看不清
   const lines = Array.from({ length: 2 }, () => {
     const x1 = Math.random() * width;
     const y1 = Math.random() * height;
@@ -60,7 +47,6 @@ ${dots}${lines}${chars.join('')}
 }
 
 export function issueCaptcha() {
-  // 顺手清理过期项，避免 Map 无限涨
   const now = Date.now();
   for (const [key, value] of store) {
     if (value.expiresAt < now) store.delete(key);
@@ -76,7 +62,6 @@ export function issueCaptcha() {
   return { id, image: `data:image/svg+xml;base64,${Buffer.from(buildSvg(text)).toString('base64')}` };
 }
 
-/** 一次性校验：不管对错都把这条记录删掉 */
 export function verifyCaptcha(id, input) {
   if (!id || typeof input !== 'string') return false;
   const entry = store.get(id);

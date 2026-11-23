@@ -1,11 +1,3 @@
-/**
- * 业务接口：登录、小组、成员权限、任务、账目、专注、提醒。
- *
- * 设计取舍：
- * - 用 Bearer token 而不是 Cookie：同源部署下更简单，也避免 CSRF 那套；
- *   代价是 token 存在 localStorage，XSS 能偷走 —— 所以渲染层必须继续用 DOMPurify。
- * - 所有 group 数据都要先过 membership()，权限判断集中在 requireMember / requireManager。
- */
 import { issueCaptcha, verifyCaptcha } from './captcha.mjs';
 import {
   addFocus,
@@ -69,14 +61,12 @@ function tokenOf(req) {
   return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
-/** 返回 { user } 或 { error } */
 function requireUser(req) {
   const user = sessionUser(tokenOf(req));
   if (!user) return { error: '请先登录', status: 401 };
   return { user };
 }
 
-/** 返回 { user, role, groupId } 或 { error } */
 function requireMember(req, groupId) {
   const auth = requireUser(req);
   if (auth.error) return auth;
@@ -94,7 +84,6 @@ function requireManager(req, groupId) {
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
-/** 本模块负责的路径前缀；其它 /api 路由（health、模型、日志、分享、对话）交给 index.mjs */
 const OWN_PREFIXES = ['/api/auth', '/api/notes', '/api/alerts', '/api/groups', '/api/tasks', '/api/expenses', '/api/focus', '/api/reminders'];
 
 export async function handleAppApi(req, res, url) {
@@ -102,13 +91,11 @@ export async function handleAppApi(req, res, url) {
   if (!OWN_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'))) return false;
 
   try {
-    // ------------------------------------------------------------------ 认证
     if (path === '/api/auth/captcha' && req.method === 'GET') {
       return json(res, 200, issueCaptcha()), true;
     }
 
     if (path === '/api/auth/register' && req.method === 'POST') {
-      // 公网部署时把 ALLOW_REGISTER 设成 0：账号建好后就不再接受新注册
       if (process.env.ALLOW_REGISTER === '0') {
         return bad(res, '本站已关闭注册，请联系管理员开通账号', 403), true;
       }
@@ -117,7 +104,6 @@ export async function handleAppApi(req, res, url) {
       const password = String(body.password ?? '');
       const displayName = String(body.displayName ?? '').trim() || username;
 
-      // 先验验证码：一次性，错了就作废，得刷新再试
       if (!verifyCaptcha(body.captchaId, body.captchaText)) {
         return bad(res, '验证码不对，换一个试试'), true;
       }
@@ -149,7 +135,6 @@ export async function handleAppApi(req, res, url) {
       return json(res, 200, { user: publicUser(auth.user) }), true;
     }
 
-    // ------------------------------------------------------------------ 小组
     if (path === '/api/groups' && req.method === 'GET') {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;
@@ -214,7 +199,6 @@ export async function handleAppApi(req, res, url) {
       }
     }
 
-    // ------------------------------------------------------------------ 任务
     const tasksMatch = /^\/api\/groups\/([\w-]+)\/tasks$/.exec(path);
     if (tasksMatch && req.method === 'GET') {
       const ctx = requireMember(req, tasksMatch[1]);
@@ -251,7 +235,6 @@ export async function handleAppApi(req, res, url) {
       }
     }
 
-    // ------------------------------------------------------------------ 账目
     const expensesMatch = /^\/api\/groups\/([\w-]+)\/expenses$/.exec(path);
     if (expensesMatch && req.method === 'GET') {
       const ctx = requireMember(req, expensesMatch[1]);
@@ -278,7 +261,6 @@ export async function handleAppApi(req, res, url) {
       return json(res, 200, { ok: true }), true;
     }
 
-    // ------------------------------------------------------------------ 专注
     if (path === '/api/focus' && req.method === 'GET') {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;
@@ -294,7 +276,6 @@ export async function handleAppApi(req, res, url) {
       return json(res, 200, { ok: true }), true;
     }
 
-    // ------------------------------------------------------------------ 笔记
     if (path === '/api/notes' && req.method === 'GET') {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;
@@ -324,7 +305,6 @@ export async function handleAppApi(req, res, url) {
       }
     }
 
-    // ------------------------------------------------------------------ 提醒
     if (path === '/api/alerts' && req.method === 'GET') {
       const auth = requireUser(req);
       if (auth.error) return bad(res, auth.error, auth.status), true;

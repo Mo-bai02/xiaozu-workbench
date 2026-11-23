@@ -18,16 +18,9 @@ interface StreamParams {
   messages: ChatMessage[];
   onDelta: (text: string) => void;
   signal?: AbortSignal;
-  /** 选中的模型，服务端据此路由到对应供应商 */
   model?: string;
 }
 
-/**
- * 流式请求。
- *
- * 前端只有这一条路径 —— 背后是真模型还是 mock，由服务端决定（看有没有配 LLM_API_KEY）。
- * 少一个分支，就少一类"本地好使、线上不对"的 bug。
- */
 export async function streamChat({ messages, onDelta, signal, model }: StreamParams): Promise<StreamStats> {
   const startedAt = performance.now();
   let ttftMs = 0;
@@ -47,7 +40,6 @@ export async function streamChat({ messages, onDelta, signal, model }: StreamPar
     try {
       detail = (await response.json()).error ?? '';
     } catch {
-      /* 忽略非 JSON 响应 */
     }
     throw new Error(detail || `请求失败：${response.status}`);
   }
@@ -63,7 +55,6 @@ export async function streamChat({ messages, onDelta, signal, model }: StreamPar
         try {
           usage = JSON.parse(event.data).usage;
         } catch {
-          /* usage 可为空 */
         }
         continue;
       }
@@ -74,7 +65,6 @@ export async function streamChat({ messages, onDelta, signal, model }: StreamPar
           const parsed = JSON.parse(event.data) as { text?: string };
           if (typeof parsed.text === 'string') text = parsed.text;
         } catch {
-          /* 允许服务端直接返回纯文本 */
         }
         if (!text) continue;
         if (!ttftMs) ttftMs = performance.now() - startedAt;

@@ -28,7 +28,6 @@ interface GroupState {
   join: (code: string) => Promise<void>;
   setActive: (id: string) => void;
   active: () => GroupSummary | null;
-  /** 当前用户在这个小组的角色，用于控制能不能改成员 */
   myRole: () => Role | null;
   canManage: () => boolean;
 }
@@ -48,7 +47,6 @@ function writeActive(id: string | null): void {
     if (id) localStorage.setItem(ACTIVE_KEY, id);
     else localStorage.removeItem(ACTIVE_KEY);
   } catch {
-    /* 忽略 */
   }
 }
 

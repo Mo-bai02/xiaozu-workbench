@@ -11,11 +11,6 @@ export interface ModelOption {
 
 let cache: ModelOption[] | null = null;
 
-/**
- * 可用模型列表。
- * 服务端只返回「配了 Key 的」模型 —— 没配 Key 的不会出现在下拉里，
- * 避免用户选了一个必然失败的选项。
- */
 export function useModels(): ModelOption[] {
   const [models, setModels] = useState<ModelOption[]>(cache ?? []);
 

@@ -7,7 +7,6 @@ export interface FocusSession {
   id: string;
   minutes: number;
   taskId: string | null;
-  /** 自己填的任务名（没绑定看板任务时用） */
   taskLabel: string | null;
   groupId: string | null;
   endedAt: number;
@@ -36,7 +35,6 @@ function readDurations(): { focusMinutes: number; breakMinutes: number } {
       };
     }
   } catch {
-    /* 忽略 */
   }
   return { focusMinutes: 25, breakMinutes: 5 };
 }
@@ -71,18 +69,11 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     try {
       localStorage.setItem(DURATION_KEY, JSON.stringify({ focusMinutes, breakMinutes }));
     } catch {
-      /* 忽略 */
     }
     set({ focusMinutes, breakMinutes });
   },
 }));
 
-/**
- * 某个北京自然日的专注分钟数。
- *
- * 关键点：不能按浏览器本地时区切分 —— 用户把系统时区改成 UTC-8 时，
- * "今天"会整体偏 16 小时，统计就错位了。
- */
 export function minutesOnCstDay(sessions: FocusSession[], ts: number = Date.now()): number {
   const key = cstDayKey(ts);
   return sessions
@@ -90,7 +81,6 @@ export function minutesOnCstDay(sessions: FocusSession[], ts: number = Date.now(
     .reduce((sum, session) => sum + session.minutes, 0);
 }
 
-/** 近 7 天（北京时间自然日）的专注分钟 */
 export function focusTrend(sessions: FocusSession[]): Array<{ label: string; value: number }> {
   const now = Date.now();
   const result: Array<{ label: string; value: number }> = [];

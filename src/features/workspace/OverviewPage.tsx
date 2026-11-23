@@ -45,13 +45,11 @@ export function OverviewPage() {
   }, [tasks]);
 
   const trend = useMemo(() => completionTrend(tasks, 7), [tasks]);
-  // 近 7 天完成数：小组指标，跟个人专注/笔记无关
   const weekDone = useMemo(
     () => tasks.filter((task) => task.status === 'done' && task.completedAt && task.completedAt >= Date.now() - 6 * 86_400_000).length,
     [tasks],
   );
 
-  // 本月支出按北京时间的自然月切分，不受浏览器时区影响
   const monthSpend = useMemo(() => {
     const { start, end } = cstMonthRange();
     return expenses
@@ -67,7 +65,6 @@ export function OverviewPage() {
     ],
     [stats],
   );
-
 
   const askAi = () => {
     const doing = tasks.filter((task) => task.status === 'doing').map((task) => task.title);

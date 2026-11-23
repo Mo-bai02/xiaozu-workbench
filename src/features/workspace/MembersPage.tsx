@@ -111,7 +111,6 @@ export function MembersPage() {
       dataIndex: 'role',
       width: 150,
       render: (role: string, member) => {
-        // 只有创建者能任命/撤销管理员，且不能改自己
         if (isOwner && member.role !== 'owner') {
           return (
             <Select
@@ -196,7 +195,7 @@ export function MembersPage() {
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
             {canManage
               ? isOwner ? '你可以任命管理员、移除成员。' : '你可以移除成员。'
-              : '只有创建者和管理员可以改成员，其他人只能查看。'}
+              : '只有创建者和管理员可以改成员。'}
           </Typography.Paragraph>
         </div>
         <Space wrap>

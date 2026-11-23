@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, getToken, setToken } from '@/lib/http';
+import { ApiError, api, getToken, setToken } from '@/lib/http';
 
 export interface User {
   id: string;
@@ -9,7 +9,6 @@ export interface User {
 
 interface AuthState {
   user: User | null;
-  /** 首次拉取 /me 完成前为 false，用来避免闪一下登录页 */
   ready: boolean;
   pending: boolean;
   error: string | null;
@@ -41,8 +40,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const data = await api<{ user: User }>('/auth/me');
       set({ user: data.user, ready: true });
-    } catch {
-      setToken(null);
+    } catch (error) {
+      // 只有明确失效才清 token；网络断了保留登录态，服务恢复后刷新即可
+      if (error instanceof ApiError && error.status === 401) setToken(null);
       set({ user: null, ready: true });
     }
   },
@@ -89,14 +89,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await api('/auth/logout', { method: 'POST' });
     } catch {
-      /* 即使服务端失败，本地也要清干净 */
     }
     setToken(null);
     set({ user: null, error: null });
   },
 }));
 
-// 任何请求收到 401 都会广播这个事件，这里统一退出，页面会被路由守卫带回登录页
 if (typeof window !== 'undefined') {
   window.addEventListener('ai-console:unauthorized', () => {
     useAuthStore.setState({ user: null });

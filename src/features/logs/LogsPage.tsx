@@ -167,7 +167,7 @@ export function LogsPage() {
           调用日志
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          只显示你自己的调用记录，换设备也在。
+          只显示你自己的调用记录。
         </Typography.Paragraph>
       </div>
 

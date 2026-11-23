@@ -1,13 +1,3 @@
-/**
- * 演示数据脚本：node server/seed-demo.mjs
- *
- * 做什么：
- * 1. 把已有的第一个小组改名为「测试组1」（保留原有任务）
- * 2. 新建「测试组2」，塞一套**完全不同**的任务和成员
- * 3. 所有演示账号密码统一成 111111
- *
- * 可以重复执行：已经存在的成员/任务不会重复插入。
- */
 import { randomBytes, scryptSync } from 'node:crypto';
 import { cstDayRange, db, createGroup, getUserByName, now, uid } from './db.mjs';
 
@@ -110,7 +100,6 @@ function addExpense(groupId, creatorId, expense) {
   );
 }
 
-// ---------------------------------------------------------------------------
 const today = cstDayRange(now());
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -120,7 +109,6 @@ const overdue = today.start - 2 * DAY + 10 * HOUR;
 const tomorrow = today.start + DAY + 15 * HOUR;
 const nextWeek = today.start + 5 * DAY + 12 * HOUR;
 
-// 真正的主人：优先 mobai，否则取第一个非演示账号
 const DEMO_NAMES = ['ownerId', 'surui', 'zhouye', 'linxiao', 'demo_user'];
 const ownerRow =
   db.prepare("SELECT * FROM users WHERE username = 'mobai'").get() ??
@@ -139,7 +127,6 @@ const surui = ensureUser('surui', '苏芮');
 const zhouye = ensureUser('zhouye', '周野');
 const linxiao = ensureUser('linxiao', '林晓');
 
-// 组 1：把原来的组直接改名，任务原样保留
 const legacy = db.prepare("SELECT id FROM groups WHERE name = '毕设小组'").get();
 if (legacy) {
   db.prepare("UPDATE groups SET name = '测试组1' WHERE id = ?").run(legacy.id);
@@ -169,7 +156,6 @@ addTask(group1, ownerId, {
   tags: ['文档'],
 });
 
-// 组 2：全新的数据，跟组 1 不重样
 const group2 = ensureGroup('测试组2', ownerId);
 ensureMember(group2, surui, 'admin');
 ensureMember(group2, zhouye, 'member');

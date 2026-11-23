@@ -5,10 +5,6 @@ import { Link, useParams } from 'react-router-dom';
 import { Markdown } from '@/components/Markdown';
 import { getShare, type SharedNote } from '@/lib/api';
 
-/**
- * 只读分享页：不需要登录，凭链接访问。
- * 刻意放在 AppShell 之外 —— 分享给外部的人看，不应该看到你的任务、账本和日志。
- */
 export function SharePage() {
   const { id = '' } = useParams();
   const [data, setData] = useState<SharedNote | null>(null);

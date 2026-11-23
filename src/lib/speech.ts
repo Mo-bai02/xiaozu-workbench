@@ -1,14 +1,3 @@
-/**
- * 语音识别（Web Speech API）。
- *
- * 现状说明：
- * - Chrome / Edge 支持（webkitSpeechRecognition），Firefox 不支持，Safari 部分支持；
- * - 需要安全上下文（https 或 localhost），http 页面拿不到麦克风；
- * - 识别在浏览器/云端做，iOS 上可能跳转系统听写。
- *
- * 所以对外暴露 supported 标记，UI 要能在不支持时优雅降级。
- */
-
 interface RecognitionResultItem {
   transcript: string;
 }
@@ -123,7 +112,6 @@ export class SpeechRecognizer {
       recognition.start();
       return true;
     } catch (error) {
-      // 重复 start 会抛 InvalidStateError，这里吞掉，交给 onerror 处理
       this.callbacks.onError?.(error instanceof Error ? error.message : '语音识别启动失败');
       return false;
     }
@@ -135,7 +123,6 @@ export class SpeechRecognizer {
     try {
       this.recognition.stop();
     } catch {
-      /* 忽略 */
     }
     this.recognition = null;
   }

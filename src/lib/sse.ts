@@ -1,17 +1,3 @@
-/**
- * SSE 解析器（纯函数、可单测，不依赖 fetch / DOM）。
- *
- * 为什么不用 EventSource？
- * - EventSource 只能 GET，且拿不到 request body，多轮对话要把 history 塞进 URL，很快超长；
- * - 无法设置自定义 header（鉴权、trace id）；
- * - 不能 POST 就意味着不能带大 payload。
- * 所以用 fetch + ReadableStream 自己解协议 —— 这也是 Vercel AI SDK 的做法。
- *
- * 真正的坑在「分包」：一个事件可能被拆到两次 read 里，比如
- *   chunk1: 'data: {"te'      chunk2: 'xt":"你好"}\n\n'
- * 解析器必须持有缓冲区，只在遇到空行（\n\n）时才落地一个事件。
- */
-
 export interface SSEEvent {
   event: string;
   data: string;
@@ -20,7 +6,6 @@ export interface SSEEvent {
 
 export interface SSEParser {
   feed(chunk: string): SSEEvent[];
-  /** 流结束时调用：处理没有以空行结尾的最后一个事件 */
   flush(): SSEEvent[];
 }
 
@@ -41,7 +26,6 @@ function parseBlock(block: string): SSEEvent | null {
     if (field === 'event') event = value;
     else if (field === 'data') dataLines.push(value);
     else if (field === 'id') id = value;
-    // retry / 其它字段忽略
   }
 
   if (dataLines.length === 0) return null; // 只有注释或 retry
@@ -67,7 +51,6 @@ export function createSSEParser(): SSEParser {
   return {
     feed(chunk: string): SSEEvent[] {
       buffer += chunk;
-      // 统一换行，避免 \r\n 被拆到两个 chunk 里导致分隔符匹配不上
       buffer = buffer.replace(/\r\n/g, '\n');
       return drain();
     },

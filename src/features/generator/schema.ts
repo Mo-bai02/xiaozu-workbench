@@ -2,13 +2,6 @@ import { z } from 'zod';
 
 import { apiFetch } from '@/lib/api';
 
-/**
- * 生成式 UI 的「契约」。
- *
- * 大模型不能直接产出 React 组件（不可信、不可控、没法审计），
- * 只能产出这份 JSON Schema —— 前端校验通过后才渲染。
- * 这样即使模型胡说，最坏结果是"渲染失败"，而不是"执行了任意代码"。
- */
 export const fieldTypeSchema = z.enum(['input', 'textarea', 'number', 'select', 'date', 'switch']);
 
 export const uiFieldSchema = z.object({
@@ -137,7 +130,6 @@ export function mockSpec(prompt: string): UISpec {
   return RULES.find((rule) => rule.test.test(prompt))?.spec ?? FALLBACK;
 }
 
-/** 请求服务端生成 Schema：真模型或 mock 由服务端决定，前端只负责校验。 */
 export async function generateSpec(prompt: string, signal?: AbortSignal, model?: string): Promise<UISpec> {
   const response = await apiFetch('/generate/ui', {
     method: 'POST',
@@ -147,7 +139,6 @@ export async function generateSpec(prompt: string, signal?: AbortSignal, model?:
   });
   if (!response.ok) throw new Error(`生成失败：${response.status}`);
 
-  // 服务端外层包了 { schema, mock, model }，这里兼容两种形状
   const raw = (await response.json()) as unknown;
   const payload = raw as { schema?: unknown } | null;
   const result = validateSpec(payload?.schema ?? raw);

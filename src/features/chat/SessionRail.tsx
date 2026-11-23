@@ -4,7 +4,6 @@ import { DeleteOutlined, EditOutlined, MessageOutlined, MoreOutlined, PlusOutlin
 import { useSessionStore } from '@/store/sessions';
 
 interface Props {
-  /** 流式生成中禁止切换，避免把正在写的消息丢掉 */
   disabled: boolean;
   onSwitch: (id: string) => void;
   onNew: () => void;

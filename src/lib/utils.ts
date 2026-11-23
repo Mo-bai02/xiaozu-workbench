@@ -12,7 +12,6 @@ export function formatNumber(n: number): string {
   return new Intl.NumberFormat('zh-CN').format(n);
 }
 
-/** 粗略的成本估算：按 ¥0.002 / 1K tokens 计，仅用于演示 */
 export function estimateCost(tokens: number): string {
   return `¥${((tokens / 1000) * 0.002).toFixed(4)}`;
 }

@@ -57,7 +57,6 @@ export function LoginPage() {
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [captchaLoading, setCaptchaLoading] = useState(false);
   const [password, setPassword] = useState('');
-  /** 登录成功后的过场：先播 900ms 动画，再跳走 */
   const [entering, setEntering] = useState<string | null>(null);
   const [form] = Form.useForm<LoginValues>();
 
@@ -78,7 +77,6 @@ export function LoginPage() {
     if (mode === 'register' && !captcha) void loadCaptcha();
   }, [mode, captcha, loadCaptcha]);
 
-  // ?enter=1 直接预览过场动画，方便调样式和截图
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('enter') !== '1') return;
     setEntering(user?.displayName ?? '陈鹏宇');
@@ -102,12 +100,10 @@ export function LoginPage() {
 
       const name = useAuthStore.getState().user?.displayName ?? '';
       setEntering(name);
-      // 动画主体 1.15s 左右收尾，1.2s 就走，不留空等
       window.setTimeout(() => {
         navigate(hasGroup ? '/overview' : '/groups', { replace: true });
       }, 1200);
     } catch {
-      // 验证码一次性，失败后换一张，避免用户对着同一个死码反复输
       if (mode === 'register') void loadCaptcha();
     }
   };

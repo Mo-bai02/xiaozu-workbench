@@ -153,7 +153,6 @@ export function ChatPage() {
   const lastAssistantId = lastAssistant?.id;
   const lastContent = messages[messages.length - 1]?.content ?? '';
 
-  // 首次进入：把当前会话的历史灌回对话框
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
@@ -161,7 +160,6 @@ export function ChatPage() {
     if (session?.messages.length) loadMessages(session.messages);
   }, [loadMessages]);
 
-  // 会话保存：流式过程中不写盘，结束后 400ms 落一次
   useEffect(() => {
     if (streaming || messages.length === 0) return;
     const timer = window.setTimeout(() => updateMessages(activeId, messages), 400);
@@ -182,9 +180,6 @@ export function ChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [lastContent, messages.length]);
 
-  // 支持两种入口：
-  // ?demo=1  —— 打开即跑一段示例，方便录屏 / 截图
-  // ?ask=...  —— 从看板、概览跳过来时预填问题（跨模块联动的关键）
   useEffect(() => {
     if (demoStarted.current) return;
     const params = new URLSearchParams(window.location.search);
@@ -237,7 +232,6 @@ export function ChatPage() {
     startVoice();
   };
 
-  // 从悬浮球的「语音提问」过来：?voice=1 直接开始听
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('voice') !== '1') return;
     window.history.replaceState({}, '', '/chat');

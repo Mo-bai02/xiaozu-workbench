@@ -1,10 +1,3 @@
-/**
- * 数据层：Node 24 内置的 node:sqlite，一个文件就是一个库，不需要装任何依赖。
- *
- * 时间统一存 epoch 毫秒（整数）。所有"今天/本月"的判断都按北京时间算，
- * 因为中国不实行夏令时，UTC+8 是固定偏移，可以直接用「时间戳 + 8 小时」再取 UTC 字段。
- * 如果以后要支持多时区，就得改成存时区字段 + 按 IANA 规则换算，那是另一件事了。
- */
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
@@ -110,17 +103,14 @@ CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id, spent_at);
 CREATE INDEX IF NOT EXISTS idx_focus_user_day ON focus_sessions(user_id, ended_at);
 `);
 
-// 看板不再区分「进行中」，历史数据并到待办
+// 看板不再有「进行中」，老数据并进待办
 db.exec("UPDATE tasks SET status = 'todo' WHERE status = 'doing'");
 
-// 专注记录支持自定义任务名（不选看板任务时自己填）
 try {
   db.exec('ALTER TABLE focus_sessions ADD COLUMN task_label TEXT');
 } catch {
-  /* 已经有了 */
 }
 
-// 调用日志：按用户存库，换设备也能看到自己的记录
 db.exec(`
 CREATE TABLE IF NOT EXISTS api_logs (
   id             TEXT PRIMARY KEY,
@@ -141,19 +131,15 @@ CREATE TABLE IF NOT EXISTS api_logs (
 CREATE INDEX IF NOT EXISTS idx_logs_user ON api_logs(user_id, created_at DESC);
 `);
 
-// 老库（建表时还没有这两列）补上
 try {
   db.exec("ALTER TABLE api_logs ADD COLUMN question TEXT NOT NULL DEFAULT ''");
 } catch {
-  /* 已经有了 */
 }
 try {
   db.exec("ALTER TABLE api_logs ADD COLUMN answer TEXT NOT NULL DEFAULT ''");
 } catch {
-  /* 已经有了 */
 }
 
-// 提醒的已读状态：按「用户 + 任务」记，同一任务在不同人眼里各自已读
 db.exec(`
 CREATE TABLE IF NOT EXISTS alert_reads (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -163,35 +149,27 @@ CREATE TABLE IF NOT EXISTS alert_reads (
 );
 `);
 
-// 老库没有 important 列，启动时补一次（SQLite 不支持 IF NOT EXISTS 加列）
 try {
   db.exec('ALTER TABLE tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0');
 } catch {
-  /* 已经有了 */
 }
 
-// ---------------------------------------------------------------------------
-// 时间：北京时间（UTC+8，无夏令时）
-// ---------------------------------------------------------------------------
 const CST_OFFSET = 8 * 60 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 
 export const now = () => Date.now();
 export const uid = (prefix) => `${prefix}_${randomBytes(8).toString('hex')}`;
 
-/** 某时间戳对应的北京时间日期串 YYYY-MM-DD */
 export function cstDayKey(ts = Date.now()) {
   return new Date(ts + CST_OFFSET).toISOString().slice(0, 10);
 }
 
-/** 北京时间「今天」的起止时间戳 */
 export function cstDayRange(ts = Date.now()) {
   const shifted = new Date(ts + CST_OFFSET);
   const start = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - CST_OFFSET;
   return { start, end: start + DAY };
 }
 
-/** 北京时间「本月」的起止时间戳 */
 export function cstMonthRange(ts = Date.now()) {
   const shifted = new Date(ts + CST_OFFSET);
   const start = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - CST_OFFSET;
@@ -199,7 +177,6 @@ export function cstMonthRange(ts = Date.now()) {
   return { start, end: next };
 }
 
-/** 把 YYYY-MM 解析成北京时间的月份区间；非法输入返回本月 */
 export function cstMonthRangeByKey(monthKey) {
   const match = /^(\d{4})-(\d{2})$/.exec(monthKey ?? '');
   if (!match) return cstMonthRange();
@@ -210,9 +187,6 @@ export function cstMonthRangeByKey(monthKey) {
   return { start, end };
 }
 
-// ---------------------------------------------------------------------------
-// 用户与密码
-// ---------------------------------------------------------------------------
 function hashPassword(password, salt) {
   return scryptSync(password, salt, 64).toString('hex');
 }
@@ -246,9 +220,6 @@ export function publicUser(row) {
   return { id: row.id, username: row.username, displayName: row.display_name };
 }
 
-// ---------------------------------------------------------------------------
-// 会话
-// ---------------------------------------------------------------------------
 const SESSION_TTL = 30 * DAY;
 
 export function createSession(userId) {
@@ -278,9 +249,6 @@ export function destroySession(token) {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
-// ---------------------------------------------------------------------------
-// 小组与权限
-// ---------------------------------------------------------------------------
 function inviteCode() {
   return randomBytes(3).toString('hex').toUpperCase();
 }
@@ -373,9 +341,6 @@ export function removeMember(groupId, userId) {
   db.prepare('UPDATE tasks SET assignee_id = NULL WHERE group_id = ? AND assignee_id = ?').run(groupId, userId);
 }
 
-// ---------------------------------------------------------------------------
-// 任务
-// ---------------------------------------------------------------------------
 const TASK_FIELDS = {
   title: 'title',
   description: 'description',
@@ -453,9 +418,6 @@ export function deleteTask(taskId, groupId) {
   return result.changes > 0;
 }
 
-// ---------------------------------------------------------------------------
-// 账目
-// ---------------------------------------------------------------------------
 export function listExpenses(groupId, start, end) {
   return db
     .prepare(
@@ -496,9 +458,6 @@ export function deleteExpense(id, groupId, userId, canManage) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// 专注
-// ---------------------------------------------------------------------------
 export function listFocus(userId, start, end) {
   return db
     .prepare(
@@ -527,9 +486,6 @@ export function addFocus(userId, groupId, input) {
   return id;
 }
 
-// ---------------------------------------------------------------------------
-// 提醒：我所在的小组里，今天到期的和已逾期的未完成任务
-// ---------------------------------------------------------------------------
 export function reminders(userId) {
   const { start, end } = cstDayRange();
   return db
@@ -549,10 +505,6 @@ export function reminders(userId) {
     }));
 }
 
-/**
- * 提醒只包含两类：快到期的高优先级任务，以及被标为重点的任务。
- * 普通待办不进提醒 —— 任务一多，什么都提醒等于什么都没提醒。
- */
 export function myAlerts(userId) {
   const { start, end } = cstDayRange();
 
@@ -597,7 +549,6 @@ export function myAlerts(userId) {
   };
 }
 
-/** 标记已读：传 ids 就标这些，传 all 就全标 */
 export function markAlertsRead(userId, ids) {
   const ts = now();
   const insert = db.prepare(
@@ -605,7 +556,6 @@ export function markAlertsRead(userId, ids) {
   );
 
   if (ids === 'all') {
-    // 用和提醒列表相同的口径，避免「全部已读」漏掉一部分
     const { items } = myAlerts(userId);
     for (const item of items) insert.run(userId, item.id, ts);
     return items.length;
@@ -627,9 +577,6 @@ function safeJson(text, fallback) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 笔记：只属于某个人，不进小组
-// ---------------------------------------------------------------------------
 export function listNotes(userId) {
   return db
     .prepare(
@@ -681,9 +628,6 @@ export function deleteNote(id, userId) {
   return db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
 }
 
-// ---------------------------------------------------------------------------
-// 调用日志（用户级，落库）
-// ---------------------------------------------------------------------------
 export function insertLog(userId, entry) {
   db.prepare(
     `INSERT OR REPLACE INTO api_logs
@@ -706,7 +650,6 @@ export function insertLog(userId, entry) {
     entry.time ?? now(),
   );
 
-  // 每人只留最近 200 条
   db.prepare(
     `DELETE FROM api_logs WHERE user_id = ? AND id NOT IN (
        SELECT id FROM api_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 200

@@ -41,7 +41,6 @@ const COLUMNS: Array<{ key: ColumnKey; label: string; color: string }> = [
   { key: 'overdue', label: '逾期', color: '#e5484d' },
 ];
 
-/** 逾期由截止时间推导，不是独立状态 */
 function columnOf(task: Task): ColumnKey {
   if (task.status === 'done') return 'done';
   if (task.dueAt !== null && task.dueAt < Date.now()) return 'overdue';
@@ -110,7 +109,6 @@ export function BoardPage() {
       status: task.status,
       urgent: task.priority === 'high',
       important: task.important,
-      // 人员已被移出小组时不要显示原始 id，直接留空
       assigneeId: assigneeExists ? task.assigneeId : null,
       dueAt: task.dueAt ? dayjs(task.dueAt) : null,
     });

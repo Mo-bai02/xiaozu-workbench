@@ -5,7 +5,6 @@ import type { Expense } from './settle';
 
 interface ExpenseState {
   expenses: Expense[];
-  /** 当前查看的月份，YYYY-MM（北京时间） */
   month: string;
   loading: boolean;
   error: string | null;
@@ -28,7 +27,6 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       return;
     }
     try {
-      // 服务端按北京时间的月初/月末切分，返回给前端直接展示
       const data = await api<{ expenses: Expense[] }>(`/groups/${groupId}/expenses?month=${month}`);
       set({ expenses: data.expenses, loading: false });
     } catch (error) {

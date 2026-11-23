@@ -1,9 +1,3 @@
-/**
- * 带登录态的请求封装。
- *
- * 401 统一处理：清掉本地 token 并广播事件，由 App 层跳转登录页 ——
- * 避免每个页面各自判断"没登录"。
- */
 const TOKEN_KEY = 'ai-console:token';
 
 export function getToken(): string | null {
@@ -19,7 +13,6 @@ export function setToken(token: string | null): void {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    /* 隐私模式忽略 */
   }
 }
 
@@ -35,7 +28,6 @@ export class ApiError extends Error {
 export interface RequestOptions {
   method?: string;
   body?: unknown;
-  /** 登录/注册这类接口不需要带 token */
   anonymous?: boolean;
 }
 
@@ -54,7 +46,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (response.status === 401) {
     const detail = await response.json().catch(() => ({ error: '请求失败' }));
 
-    // 登录/注册（anonymous）返回 401 是"账号或密码不对"，不能当成会话过期
     if (!options.anonymous && token) {
       setToken(null);
       window.dispatchEvent(new Event('ai-console:unauthorized'));

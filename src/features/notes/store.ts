@@ -13,7 +13,6 @@ export interface Note {
 
 interface NoteState {
   notes: Note[];
-  /** 分享 id 只存在本地：分享是"这一份快照"，不属于笔记本身 */
   shareIds: Record<string, string>;
   loading: boolean;
   loaded: boolean;
@@ -32,7 +31,6 @@ function readShareIds(): Record<string, string> {
     const raw = localStorage.getItem(SHARE_KEY);
     if (raw) return JSON.parse(raw) as Record<string, string>;
   } catch {
-    /* 忽略 */
   }
   return {};
 }
@@ -41,7 +39,6 @@ function writeShareIds(map: Record<string, string>): void {
   try {
     localStorage.setItem(SHARE_KEY, JSON.stringify(map));
   } catch {
-    /* 忽略 */
   }
 }
 
@@ -73,7 +70,6 @@ export const useNotesStore = create<NoteState>((set, get) => ({
   },
 
   update: async (id, patch) => {
-    // 先本地改，输入时不会有延迟感；服务端失败就重新拉
     const snapshot = get().notes;
     set({
       notes: snapshot.map((note) =>
@@ -124,7 +120,6 @@ export const useNotesStore = create<NoteState>((set, get) => ({
   },
 }));
 
-/** 搜索 + 标签过滤，抽出来方便单测 */
 export function filterNotes(
   notes: Note[],
   options: { keyword?: string; tag?: string | null } = {},
@@ -148,7 +143,6 @@ export function filterNotes(
     });
 }
 
-/** 从正文里抽 #话题 形式的标签，输入时自动补全用 */
 export function extractTags(content: string): string[] {
   const matched = content.match(/#[\u4e00-\u9fa5a-zA-Z0-9_-]{1,12}/g) ?? [];
   return [...new Set(matched.map((tag) => tag.slice(1)))];

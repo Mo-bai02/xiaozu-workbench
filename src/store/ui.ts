@@ -6,7 +6,6 @@ interface UIState {
   dark: boolean;
   collapsed: boolean;
   paletteOpen: boolean;
-  /** 当前选中的模型 id；空串表示"跟随服务端默认" */
   modelId: string;
   toggleDark: () => void;
   setCollapsed: (value: boolean) => void;
@@ -29,7 +28,6 @@ function write(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch {
-    /* 隐私模式忽略 */
   }
 }
 

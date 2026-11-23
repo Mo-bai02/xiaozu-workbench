@@ -30,7 +30,6 @@ interface Command {
   run: () => void;
 }
 
-/** 纯函数，方便单测：按标题/提示做不区分大小写的包含匹配，前缀命中排前面 */
 export function filterCommands(commands: Command[], query: string): Command[] {
   const q = query.trim().toLowerCase();
   if (!q) return commands;
@@ -119,12 +118,10 @@ export function CommandPalette() {
     setActiveIndex(0);
   }, [query]);
 
-  // ?palette=1 直接打开，方便演示和截图
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('palette') === '1') setOpen(true);
   }, [setOpen]);
 
-  // 全局快捷键：Ctrl/Cmd + K
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {

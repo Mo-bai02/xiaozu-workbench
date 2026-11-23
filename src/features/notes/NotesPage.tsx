@@ -28,7 +28,6 @@ import { createShare, revokeShare } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { filterNotes, useNotesStore, type Note } from './store';
 
-
 function excerpt(content: string, max = 56): string {
   const text = content
     .replace(/^[#>*\-\s]+/gm, '')
@@ -74,7 +73,6 @@ export function NotesPage() {
 
   const active: Note | undefined = notes.find((note) => note.id === activeId) ?? visible[0];
 
-  // 输入即预览；停止输入 600ms 后写盘，避免每个字符都打 localStorage
   const [draft, setDraft] = useState<{ title: string; content: string }>({ title: '', content: '' });
 
   useEffect(() => {

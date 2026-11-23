@@ -4,17 +4,9 @@ import { copyText } from '@/lib/utils';
 
 interface Props {
   source: string;
-  /** 流式生成中：给最后一段加光标、给未闭合代码块加标识 */
   streaming?: boolean;
 }
 
-/**
- * Markdown 渲染。
- *
- * 两个细节值得说：
- * 1) 所有模型输出都经过 DOMPurify，永远不直接把字符串塞进 innerHTML；
- * 2) 代码块在流式阶段会被「补全」，所以复制按钮能立刻点到，不用等生成结束。
- */
 export function Markdown({ source, streaming = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const html = useMemo(() => renderMarkdown(source), [source]);

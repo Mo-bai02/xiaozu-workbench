@@ -26,7 +26,6 @@ export interface Task {
   createdAt: number;
   dueAt: number | null;
   completedAt: number | null;
-  /** 重点任务：自己手动标星，会进登录后的提醒 */
   important: boolean;
 }
 
@@ -67,7 +66,6 @@ interface WorkspaceState {
   refreshMembers: () => Promise<void>;
 }
 
-/** 从任务里推「最近动态」，省得再造一张表 */
 function deriveActivities(tasks: Task[], members: Member[]): Activity[] {
   const nameOf = new Map(members.map((m) => [m.id, m.displayName]));
   const events: Activity[] = [];
@@ -141,7 +139,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const task = get().tasks.find((item) => item.id === id);
     if (!task) return;
 
-    // 逾期是算出来的列：拖到逾期 = 把截止时间挪到过去；拖出逾期 = 顺延到今天
     const patch: { status: TaskStatus; dueAt?: number | null } = {
       status: column === 'done' ? 'done' : 'todo',
     };
@@ -192,7 +189,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 }));
 
-/** 近 7 天完成趋势，按北京时间的自然日切分 */
 export function completionTrend(tasks: Task[], days = 7): Array<{ label: string; value: number }> {
   const buckets = new Map<string, number>();
   const now = Date.now();

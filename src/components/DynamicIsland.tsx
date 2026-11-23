@@ -12,16 +12,6 @@ interface Props {
   onRetry: () => void;
 }
 
-/**
- * 灵动岛：把「生成状态」从页面里抽出来，做成固定在顶部的一个胶囊。
- *
- * 为什么值得做？
- * - 用户往上翻历史时，也能知道"还在生成 / 已经完成"；
- * - 状态、耗时、停止按钮集中在一处，不用去找；
- * - 它是一块独立的组件 + 一套状态机，面试时可以直接讲"我怎么做这个交互"。
- *
- * 交互：生成中展开可看指标与停止；完成后停留 1.8s 自动收起；失败常驻，点一下重试。
- */
 export function DynamicIsland({ streaming, status, metrics, error, onStop, onRetry }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);

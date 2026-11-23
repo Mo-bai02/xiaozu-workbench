@@ -42,7 +42,6 @@ const ROLE_LABEL: Record<string, { text: string; color: string }> = {
   member: { text: '成员', color: 'default' },
 };
 
-/** 红黄绿灯：先看有没有逾期，再看今天到期，最后看有没有在办 */
 export function groupLight(group: GroupSummary): { color: string; label: string } {
   if (group.overdue > 0) return { color: '#e5484d', label: `${group.overdue} 个逾期` };
   if (group.dueToday > 0) return { color: '#d4a72c', label: `今天到期 ${group.dueToday}` };
@@ -79,7 +78,6 @@ export function GroupsPage() {
       .then((data) => {
         if (!alive) return;
         setAlerts(data);
-        // 每天第一次进来自动弹一次，之后收起成顶部提示条，不打扰
         const key = `ai-console:alerts-seen:${cstDayKey()}`;
         const seen = sessionStorage.getItem(key);
         if (!seen && data.items.length > 0) {
@@ -176,7 +174,7 @@ export function GroupsPage() {
           </div>
           {starredTasks.length === 0 ? (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              还没有标记重点任务，可以在看板卡片菜单里标
+              还没有标记重点任务
             </Typography.Text>
           ) : (
             <ul className="alert-list">
@@ -205,7 +203,6 @@ export function GroupsPage() {
     navigate('/board');
   };
 
-  /** 关掉弹窗时把看到的都标成已读 */
   const dismissAlerts = async () => {
     setAlertOpen(false);
     if (alerts.unread === 0) return;
@@ -223,7 +220,7 @@ export function GroupsPage() {
             选择小组
           </Typography.Title>
           <Typography.Text type="secondary">
-            {user ? `${user.displayName}，` : ''}数据按小组隔离，可以同时加入多个
+            {user ? `${user.displayName}，` : ''}每个小组数据独立
           </Typography.Text>
         </div>
         <Space>

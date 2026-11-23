@@ -1,14 +1,3 @@
-/**
- * 本地 API 服务（零依赖）。
- *
- * 能力：
- * 1. 模型注册表：多供应商、多模型，按有没有 Key 决定下拉里显示哪些；
- * 2. 有 Key 转发真实接口，没有则内置 mock（仍然真 SSE 推流）；
- * 3. 生成式 UI：让模型产出 UI Schema，前端负责校验与渲染；
- * 4. 调用日志：按访客隔离 —— 同一个页面被内网穿透给别人用，他们只看到自己的记录。
- *
- * API Key 只存在于服务端进程，永远不会进浏览器。
- */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -95,16 +84,10 @@ const CORS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ---------------------------------------------------------------------------
-// 访客隔离：日志按 X-Visitor-Id 分组，互不可见
-// ---------------------------------------------------------------------------
 const MAX_LOGS_PER_VISITOR = 100;
-/** 分享出去的笔记：只读、凭链接访问。内存存储，重启清空。 */
 const shares = new Map();
-// 日志改为落到 SQLite，按用户存；这里只保留最近一次写入的兜底缓存
 const logsFallback = new Map();
 
-/** 访客 id 由前端 localStorage 生成；伪造别人的 id 理论上能看到别人的日志，所以这不是鉴权 */
 function getVisitor(req) {
   const raw = String(req.headers['x-visitor-id'] ?? '').trim();
   if (/^[a-zA-Z0-9_-]{8,64}$/.test(raw)) return raw;
@@ -112,7 +95,6 @@ function getVisitor(req) {
 }
 
 function recordLog(visitorId, entry, req) {
-  // 登录用户写库；拿不到用户时退回内存（比如未登录的匿名调用）
   const user = req ? sessionUser(tokenOfRequest(req)) : null;
   if (user) {
     try {
@@ -133,7 +115,6 @@ function tokenOfRequest(req) {
   return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
-// 简单的滑动窗口限流：内网穿透后是公网，防止别人拿你的 Key 刷
 const RATE_WINDOW = 60_000;
 const RATE_MAX = 30;
 const buckets = new Map();
@@ -150,7 +131,6 @@ function allowRequest(visitorId) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
 const REPLIES = {
   code: [
     '防抖的要点是**等用户停下来再执行**。一个带泛型的实现：',
@@ -246,7 +226,6 @@ async function readJson(req) {
   }
 }
 
-// ---------------------------------------------------------------------------
 async function mockChat(req, res, prompt, record) {
   res.writeHead(200, sseHeaders());
   const text = pickReply(prompt);
@@ -302,7 +281,6 @@ async function liveChat(req, res, messages, model, record) {
 
   let upstream;
   try {
-    // 带 include_usage 才能拿到 token 数；个别供应商不认这个字段会回 400，那就退回普通请求
     upstream = await call(true);
     if (upstream.status === 400) upstream = await call(false);
   } catch (error) {
@@ -318,7 +296,6 @@ async function liveChat(req, res, messages, model, record) {
     clearTimeout(timeout);
     const detail = await upstream.text().catch(() => '');
     record.status = 'failed';
-    // 上游的错误 JSON 不要原样丢给用户，先翻成人话；详细信息只留在服务端日志里
     console.error(`[upstream] ${provider.name} ${upstream.status}:`, detail.slice(0, 500));
     record.error = friendlyUpstreamError(provider.name, upstream.status);
     res.writeHead(upstream.status, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
@@ -357,7 +334,6 @@ async function liveChat(req, res, messages, model, record) {
           }
           if (json.usage) usage = json.usage;
         } catch {
-          /* 忽略无法解析的行 */
         }
       }
     }
@@ -430,7 +406,6 @@ async function handleChat(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------------
 const SYSTEM_PROMPT = `你是 UI Schema 生成器。根据用户描述输出 JSON，不要输出任何解释。
 
 JSON 结构：
@@ -516,11 +491,6 @@ async function liveSpec(prompt, model) {
   return { spec, usage: data.usage };
 }
 
-
-// ---------------------------------------------------------------------------
-// 固定表单模板：报销 / 请假 / 采购这类常见单据，字段必须是稳定的，
-// 交给模型自由发挥只会每次都长得不一样，还会缺必填项。
-// ---------------------------------------------------------------------------
 const FORM_TEMPLATES = [
   {
     id: 'expense',
@@ -587,7 +557,6 @@ const FORM_TEMPLATES = [
   },
 ];
 
-/** 命中模板就直接返回，不调模型 —— 结果稳定、字段必填项齐全 */
 function matchTemplate(prompt) {
   return FORM_TEMPLATES.find((template) => template.match(prompt)) ?? null;
 }
@@ -677,7 +646,6 @@ async function handleGenerate(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------------
 const DIST_DIR = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -693,7 +661,6 @@ const MIME = {
   '.map': 'application/json; charset=utf-8',
 };
 
-/** 返回 true 表示已经处理完（含 404），调用方直接 return */
 async function serveStatic(res, url) {
   if (!fs.existsSync(path.join(DIST_DIR, 'index.html'))) return false;
   if (url.pathname.startsWith('/api/')) return false;
@@ -726,7 +693,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // 业务接口（登录 / 小组 / 任务 / 账目 / 专注 / 提醒）
     if (await handleAppApi(req, res, url)) return;
 
     if (url.pathname === '/api/health') {
@@ -831,7 +797,6 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // 生产环境（Docker）：dist 存在时，同一个进程顺带把前端发出去，SPA 回退到 index.html
     if (req.method === 'GET' && (await serveStatic(res, url))) return;
 
     res.writeHead(404, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
