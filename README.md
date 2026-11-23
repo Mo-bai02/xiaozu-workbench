@@ -9,23 +9,23 @@
 前端 React 18 + TypeScript + Vite 5 + antd 5；服务端零依赖 Node，数据库用 Node 24 内置的 `node:sqlite`。
 
 <p align="center">
-  <img src="docs/images/overview.png" alt="项目概览" width="880" />
+  <img src="docs/images/guide/overview.png" alt="项目概览" width="880" />
 </p>
 
 <p align="center">
-  <img src="docs/images/register.png" alt="注册" width="290" />
-  <img src="docs/images/groups.png" alt="选择小组" width="290" />
-  <img src="docs/images/members.png" alt="成员权限" width="290" />
+  <img src="docs/images/guide/register.png" alt="注册" width="290" />
+  <img src="docs/images/guide/groups.png" alt="选择小组" width="290" />
+  <img src="docs/images/guide/members.png" alt="成员权限" width="290" />
 </p>
 
 <p align="center">
-  <img src="docs/images/alerts.png" alt="登录后的提醒" width="440" />
-  <img src="docs/images/switcher.png" alt="小组切换" width="440" />
+  <img src="docs/images/guide/alerts.png" alt="登录后的提醒" width="440" />
+  <img src="docs/images/guide/switcher.png" alt="小组切换" width="440" />
 </p>
 
 <p align="center">
-  <img src="docs/images/board.png" alt="任务看板" width="440" />
-  <img src="docs/images/chat.png" alt="智能助手" width="440" />
+  <img src="docs/images/guide/board.png" alt="任务看板" width="440" />
+  <img src="docs/images/guide/chat.png" alt="智能助手" width="440" />
 </p>
 
 ---
@@ -57,6 +57,11 @@
 三个 AI 模块是**工作台里的功能**，不是整个产品。概览页的「让 AI 写周报」、看板卡片的「让 AI 拆解」都以 `?ask=` 参数跳到助手，跨模块联动。
 
 ---
+
+## 文档
+
+- [使用说明](docs/使用说明.md)：每个功能怎么用，附截图，可以直接发给使用者
+- [发布到 GitHub](docs/发布到GitHub.md)：打包、提交、推送的完整步骤
 
 ## 快速开始
 
