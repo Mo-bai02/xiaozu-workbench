@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleAppApi } from './app-api.mjs';
+import { clearLogs, insertLog, listLogs, sessionUser } from './db.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -100,7 +101,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const MAX_LOGS_PER_VISITOR = 100;
 /** 分享出去的笔记：只读、凭链接访问。内存存储，重启清空。 */
 const shares = new Map();
-const logsByVisitor = new Map();
+// 日志改为落到 SQLite，按用户存；这里只保留最近一次写入的兜底缓存
+const logsFallback = new Map();
 
 /** 访客 id 由前端 localStorage 生成；伪造别人的 id 理论上能看到别人的日志，所以这不是鉴权 */
 function getVisitor(req) {
@@ -109,11 +111,26 @@ function getVisitor(req) {
   return 'anonymous';
 }
 
-function recordLog(visitorId, entry) {
-  const list = logsByVisitor.get(visitorId) ?? [];
+function recordLog(visitorId, entry, req) {
+  // 登录用户写库；拿不到用户时退回内存（比如未登录的匿名调用）
+  const user = req ? sessionUser(tokenOfRequest(req)) : null;
+  if (user) {
+    try {
+      insertLog(user.id, entry);
+      return;
+    } catch (error) {
+      console.error('[log] 写库失败，退回内存:', error.message);
+    }
+  }
+  const list = logsFallback.get(visitorId) ?? [];
   list.unshift(entry);
   if (list.length > MAX_LOGS_PER_VISITOR) list.length = MAX_LOGS_PER_VISITOR;
-  logsByVisitor.set(visitorId, list);
+  logsFallback.set(visitorId, list);
+}
+
+function tokenOfRequest(req) {
+  const header = req.headers.authorization ?? '';
+  return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
 // 简单的滑动窗口限流：内网穿透后是公网，防止别人拿你的 Key 刷
@@ -409,7 +426,7 @@ async function handleChat(req, res) {
       completionTokens: record.completionTokens,
       question: question.slice(0, 80),
       answer: record.answer.slice(0, 120),
-    });
+    }, req);
   }
 }
 
@@ -656,7 +673,7 @@ async function handleGenerate(req, res) {
       completionTokens: record.completionTokens,
       question: prompt.slice(0, 80),
       answer: '已生成 UI Schema',
-    });
+    }, req);
   }
 }
 
@@ -744,7 +761,8 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/logs' && req.method === 'GET') {
       const visitor = getVisitor(req);
-      const list = logsByVisitor.get(visitor) ?? [];
+      const user = sessionUser(tokenOfRequest(req));
+      const list = user ? listLogs(user.id) : (logsFallback.get(visitor) ?? []);
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ visitor, logs: list }));
       return;
@@ -752,7 +770,9 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/logs' && req.method === 'DELETE') {
       const visitor = getVisitor(req);
-      logsByVisitor.set(visitor, []);
+      const user = sessionUser(tokenOfRequest(req));
+      if (user) clearLogs(user.id);
+      logsFallback.set(visitor, []);
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ ok: true }));
       return;

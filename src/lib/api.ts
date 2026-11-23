@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import { getToken } from './http';
 import { getVisitorId } from './visitor';
 
 /**
@@ -8,6 +9,9 @@ import { getVisitorId } from './visitor';
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('X-Visitor-Id', getVisitorId());
+  // 带上登录态：调用日志按用户落库，没有这个头就只会写进匿名分组
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   return fetch(`${env.apiBase}${path}`, { ...init, headers });
 }
 

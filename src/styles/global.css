@@ -2932,3 +2932,9 @@ html[data-theme='dark'] .aurora-sheen {
   background: #e5484d;
   flex: none;
 }
+
+
+.money-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

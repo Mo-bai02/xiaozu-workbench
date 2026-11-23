@@ -67,7 +67,25 @@ export function FloatingBall() {
 
   useEffect(() => {
     setPoint(loadPoint());
-    const onResize = () => setPoint((prev) => (prev ? clamp(prev) : prev));
+    // 窗口尺寸变化后，除了夹回可视区，还要重新吸附到最近的边缘，
+    // 否则缩小窗口时球会停在屏幕中间
+    const onResize = () => {
+      setPoint((prev) => {
+        if (!prev) return prev;
+        const clamped = clamp(prev);
+        const snapLeft = clamped.x + SIZE / 2 < window.innerWidth / 2;
+        const snapped = clamp({
+          x: snapLeft ? MARGIN + 8 : window.innerWidth - SIZE - MARGIN - 8,
+          y: clamped.y,
+        });
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(snapped));
+        } catch {
+          /* 忽略 */
+        }
+        return snapped;
+      });
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);

@@ -109,3 +109,15 @@ export function categoryTotals(
 export function yuan(cents: number): string {
   return `¥${(cents / 100).toFixed(2)}`;
 }
+
+/**
+ * 展示用的金额：大了换成「万 / 亿」，避免 1111111.00 把表格撑变形。
+ * 结算和统计都走这个，原始分值仍然参与计算。
+ */
+export function money(cents: number): string {
+  const value = cents / 100;
+  const abs = Math.abs(value);
+  if (abs >= 1e8) return `¥${(value / 1e8).toFixed(2)}亿`;
+  if (abs >= 1e4) return `¥${(value / 1e4).toFixed(2)}万`;
+  return `¥${value.toFixed(2)}`;
+}

@@ -26,7 +26,7 @@ import { Donut } from '@/components/charts';
 import { useAuthStore } from '@/store/auth';
 import { useWorkspaceStore } from '@/features/workspace/store';
 import { useExpenseStore } from './store';
-import { categoryTotals, memberSummary, settle, yuan, type Expense } from './settle';
+import { categoryTotals, memberSummary, money, settle, type Expense } from './settle';
 
 const CATEGORIES = ['餐饮', '交通', '采购', '场地', '其他'];
 const ALL = 'ALL';
@@ -141,7 +141,7 @@ export function ExpensesPage() {
       width: 88,
       align: 'right',
       sorter: (a, b) => a.amount - b.amount,
-      render: (value: number) => <b>{yuan(value)}</b>,
+      render: (value: number) => <b className="money-cell">{money(value)}</b>,
     },
     {
       title: '',
@@ -182,22 +182,20 @@ export function ExpensesPage() {
       <Row gutter={[12, 12]}>
         <Col xs={12} md={8}>
           <Card size="small">
-            <Statistic title={`${month.format('M')} 月支出`} value={total / 100} precision={2} prefix="¥" />
+            <Statistic title={`${month.format('M')} 月支出`} value={money(total)} />
           </Card>
         </Col>
         <Col xs={12} md={8}>
           <Card size="small">
-            <Statistic title="我垫付" value={mine.paid / 100} precision={2} prefix="¥" />
+            <Statistic title="我垫付" value={money(mine.paid)} />
           </Card>
         </Col>
         <Col xs={24} md={8}>
           <Card size="small">
             <Statistic
               title="我应分摊"
-              value={mine.owed / 100}
-              precision={2}
-              prefix="¥"
-              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>（结算差额见右）</Typography.Text>}
+              value={money(mine.owed)}
+              suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>（差额见右）</Typography.Text>}
             />
           </Card>
         </Col>
@@ -240,7 +238,7 @@ export function ExpensesPage() {
                     <span className="settle-from">{nameOf[transfer.from] ?? '?'}</span>
                     <span className="settle-arrow">→</span>
                     <span className="settle-to">{nameOf[transfer.to] ?? '?'}</span>
-                    <b>{yuan(transfer.amount)}</b>
+                    <b className="money-cell">{money(transfer.amount)}</b>
                   </li>
                 ))}
               </ul>
@@ -249,7 +247,7 @@ export function ExpensesPage() {
 
           <Card size="small" className="panel" title="分类占比" style={{ marginTop: 12 }}>
             {slices.length ? (
-              <Donut data={slices} centerLabel="本月" centerValue={`¥${(total / 100).toFixed(0)}`} />
+              <Donut data={slices} centerLabel="本月" centerValue={money(total)} />
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
             )}

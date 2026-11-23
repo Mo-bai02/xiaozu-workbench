@@ -14,6 +14,7 @@ import {
   Segmented,
   Select,
   Space,
+  Switch,
   Tag,
   Tooltip,
   Typography,
@@ -30,14 +31,14 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from './store';
-import { PRIORITY_COLOR, PRIORITY_LABEL, type Priority, type Task, type TaskStatus } from './types';
+import type { Priority, Task, TaskStatus } from './types';
 
 type ColumnKey = 'todo' | 'overdue' | 'done';
 
 const COLUMNS: Array<{ key: ColumnKey; label: string; color: string }> = [
   { key: 'todo', label: '待办', color: '#d4a72c' },
-  { key: 'overdue', label: '逾期', color: '#e5484d' },
   { key: 'done', label: '已完成', color: '#0f9d58' },
+  { key: 'overdue', label: '逾期', color: '#e5484d' },
 ];
 
 /** 逾期由截止时间推导，不是独立状态 */
@@ -57,15 +58,13 @@ function dueTone(task: Task): 'overdue' | 'soon' | 'normal' {
   return 'normal';
 }
 
-const ROLE_TEXT: Record<string, string> = { owner: '创建者', admin: '管理员', member: '成员' };
-
 export function BoardPage() {
   const navigate = useNavigate();
   const { tasks, members, moveTask, addTask, updateTask, removeTask } = useWorkspaceStore();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<ColumnKey | null>(null);
   const [keyword, setKeyword] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'normal'>('all');
+  const [filter, setFilter] = useState<'all' | 'urgent' | 'important'>('all');
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [form] = Form.useForm();
 
@@ -77,12 +76,12 @@ export function BoardPage() {
   const filtered = useMemo(() => {
     const lower = keyword.trim().toLowerCase();
     return tasks.filter((task) => {
-      if (priorityFilter === 'high' && task.priority !== 'high') return false;
-      if (priorityFilter === 'normal' && task.priority === 'high') return false;
+      if (filter === 'urgent' && task.priority !== 'high') return false;
+      if (filter === 'important' && !task.important) return false;
       if (!lower) return true;
       return task.title.toLowerCase().includes(lower) || task.description.toLowerCase().includes(lower);
     });
-  }, [tasks, keyword, priorityFilter]);
+  }, [tasks, keyword, filter]);
 
   const columns = COLUMNS.map((column) => ({
     ...column,
@@ -95,7 +94,8 @@ export function BoardPage() {
       title: '',
       desc: '',
       status: column === 'done' ? 'done' : 'todo',
-      priority: 'mid',
+      urgent: false,
+      important: false,
       assigneeId: null,
       dueAt: column === 'overdue' ? dayjs().subtract(1, 'day') : null,
     });
@@ -103,12 +103,15 @@ export function BoardPage() {
 
   const openEdit = (task: Task) => {
     setEditing(task);
+    const assigneeExists = members.some((member) => member.id === task.assigneeId);
     form.setFieldsValue({
       title: task.title,
       desc: task.description,
       status: task.status,
-      priority: task.priority,
-      assigneeId: task.assigneeId,
+      urgent: task.priority === 'high',
+      important: task.important,
+      // 人员已被移出小组时不要显示原始 id，直接留空
+      assigneeId: assigneeExists ? task.assigneeId : null,
       dueAt: task.dueAt ? dayjs(task.dueAt) : null,
     });
   };
@@ -119,7 +122,8 @@ export function BoardPage() {
       title: values.title.trim(),
       description: values.desc ?? '',
       status: values.status as TaskStatus,
-      priority: values.priority as Priority,
+      priority: (values.urgent ? 'high' : 'mid') as Priority,
+      important: Boolean(values.important),
       assigneeId: values.assigneeId ?? null,
       dueAt: values.dueAt ? (values.dueAt as dayjs.Dayjs).valueOf() : null,
     };
@@ -153,12 +157,12 @@ export function BoardPage() {
           />
           <Segmented
             size="small"
-            value={priorityFilter}
-            onChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
+            value={filter}
+            onChange={(value) => setFilter(value as typeof filter)}
             options={[
               { label: '全部', value: 'all' },
-              { label: '高', value: 'high' },
-              { label: '中低', value: 'normal' },
+              { label: '紧急', value: 'urgent' },
+              { label: '重点', value: 'important' },
             ]}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openNew('todo')}>
@@ -256,7 +260,8 @@ export function BoardPage() {
                     {task.description && <p className="task-desc">{task.description}</p>}
 
                     <div className="task-meta">
-                      <Tag color={PRIORITY_COLOR[task.priority]}>{PRIORITY_LABEL[task.priority]}</Tag>
+                      {task.priority === 'high' && <Tag color="red">紧急</Tag>}
+                      {task.important && <Tag color="gold">重点</Tag>}
                       {task.tags.map((tag) => (
                         <Tag key={tag} bordered={false}>
                           {tag}
@@ -326,22 +331,17 @@ export function BoardPage() {
               ]}
             />
           </Form.Item>
-          <Form.Item name="priority" label="优先级">
-            <Select
-              options={(['high', 'mid', 'low'] as Priority[]).map((p) => ({
-                value: p,
-                label: PRIORITY_LABEL[p],
-              }))}
-            />
+          <Form.Item name="urgent" label="紧急" valuePropName="checked" extra="红色标记，会进提醒">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="important" label="重点" valuePropName="checked" extra="黄色标记，长期跟进">
+            <Switch />
           </Form.Item>
           <Form.Item name="assigneeId" label="负责人">
             <Select
               allowClear
               placeholder="未指派"
-              options={members.map((m) => ({
-                value: m.id,
-                label: `${m.displayName} · ${ROLE_TEXT[m.role] ?? '成员'}`,
-              }))}
+              options={members.map((m) => ({ value: m.id, label: m.displayName }))}
             />
           </Form.Item>
           <Form.Item name="dueAt" label="截止日期">

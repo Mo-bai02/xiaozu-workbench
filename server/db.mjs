@@ -120,6 +120,39 @@ try {
   /* 已经有了 */
 }
 
+// 调用日志：按用户存库，换设备也能看到自己的记录
+db.exec(`
+CREATE TABLE IF NOT EXISTS api_logs (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind           TEXT NOT NULL,
+  model          TEXT NOT NULL,
+  model_label    TEXT NOT NULL,
+  status         TEXT NOT NULL,
+  error          TEXT NOT NULL DEFAULT '',
+  latency_ms     INTEGER NOT NULL DEFAULT 0,
+  prompt_tokens  INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  summary        TEXT NOT NULL DEFAULT '',
+  question       TEXT NOT NULL DEFAULT '',
+  answer         TEXT NOT NULL DEFAULT '',
+  created_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_logs_user ON api_logs(user_id, created_at DESC);
+`);
+
+// 老库（建表时还没有这两列）补上
+try {
+  db.exec("ALTER TABLE api_logs ADD COLUMN question TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* 已经有了 */
+}
+try {
+  db.exec("ALTER TABLE api_logs ADD COLUMN answer TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* 已经有了 */
+}
+
 // 提醒的已读状态：按「用户 + 任务」记，同一任务在不同人眼里各自已读
 db.exec(`
 CREATE TABLE IF NOT EXISTS alert_reads (
@@ -646,4 +679,52 @@ export function updateNote(id, userId, patch) {
 
 export function deleteNote(id, userId) {
   return db.prepare('DELETE FROM notes WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// 调用日志（用户级，落库）
+// ---------------------------------------------------------------------------
+export function insertLog(userId, entry) {
+  db.prepare(
+    `INSERT OR REPLACE INTO api_logs
+       (id, user_id, kind, model, model_label, status, error, latency_ms,
+        prompt_tokens, completion_tokens, question, answer, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    entry.id,
+    userId,
+    entry.kind,
+    entry.model,
+    entry.modelLabel,
+    entry.status,
+    entry.error ?? '',
+    entry.latency ?? 0,
+    entry.promptTokens ?? 0,
+    entry.completionTokens ?? 0,
+    entry.question ?? '',
+    entry.answer ?? '',
+    entry.time ?? now(),
+  );
+
+  // 每人只留最近 200 条
+  db.prepare(
+    `DELETE FROM api_logs WHERE user_id = ? AND id NOT IN (
+       SELECT id FROM api_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 200
+     )`,
+  ).run(userId, userId);
+}
+
+export function listLogs(userId, limit = 100) {
+  return db
+    .prepare(
+      `SELECT id, kind, model, model_label AS modelLabel, status, error,
+              latency_ms AS latency, prompt_tokens AS promptTokens,
+              completion_tokens AS completionTokens, question, answer, created_at AS time
+       FROM api_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(userId, limit);
+}
+
+export function clearLogs(userId) {
+  db.prepare('DELETE FROM api_logs WHERE user_id = ?').run(userId);
 }
