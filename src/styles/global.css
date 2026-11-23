@@ -2371,10 +2371,19 @@ html[data-theme='dark'] .alert-banner {
 .alert-banner-icon {
   color: #d4a72c;
   font-size: 15px;
+  flex: none;
+}
+
+.alert-banner-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+  text-align: left;
 }
 
 .alert-banner-more {
-  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--accent);
 }
@@ -2485,7 +2494,7 @@ html[data-theme='dark'] .alert-banner {
 }
 
 /* 页面上除背景以外的内容都压在上层 */
-.auth-page > *:not(.aurora) {
+.auth-page > *:not(.aurora):not(.enter-overlay) {
   position: relative;
   z-index: 1;
 }

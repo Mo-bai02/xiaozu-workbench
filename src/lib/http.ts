@@ -52,9 +52,16 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   });
 
   if (response.status === 401) {
-    setToken(null);
-    window.dispatchEvent(new Event('ai-console:unauthorized'));
-    throw new ApiError('登录已过期，请重新登录', 401);
+    const detail = await response.json().catch(() => ({ error: '请求失败' }));
+
+    // 登录/注册（anonymous）返回 401 是"账号或密码不对"，不能当成会话过期
+    if (!options.anonymous && token) {
+      setToken(null);
+      window.dispatchEvent(new Event('ai-console:unauthorized'));
+      throw new ApiError('登录已过期，请重新登录', 401);
+    }
+
+    throw new ApiError(detail.error ?? '请求失败', 401);
   }
 
   if (!response.ok) {

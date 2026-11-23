@@ -225,7 +225,10 @@ export function GroupsPage() {
           <span className="alert-banner-icon">
             <ThunderboltFilled />
           </span>
-          你有 <b>{alertCount}</b> 条提醒：今天到期 {alerts.due.length} 条，重点任务 {alerts.starred.length} 条
+          <span className="alert-banner-text">
+            你有 <b>{alertCount}</b> 条提醒：今天到期 {alerts.due.length} 条，重点任务{' '}
+            {alerts.starred.length} 条
+          </span>
           <span className="alert-banner-more">查看</span>
         </button>
       )}
