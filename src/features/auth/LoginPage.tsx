@@ -113,13 +113,13 @@ export function LoginPage() {
       <AuroraBackground />
 
       <div className="auth-brand">
-        <span className="auth-logo">AI</span>
+        <span className="auth-logo">组</span>
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            AI Console
+            小组工作台
           </Typography.Title>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            小组工作台
+            任务 · 笔记 · 账本 · 专注
           </Typography.Text>
         </div>
       </div>

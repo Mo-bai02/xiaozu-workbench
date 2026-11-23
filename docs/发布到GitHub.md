@@ -64,7 +64,7 @@ git status --short
 ## 三、在 GitHub 建仓库
 
 1. 打开 <https://github.com/new>
-2. **Repository name** 填 `ai-console`
+2. **Repository name** 填 `xiaozu-workbench`
 3. 选 **Public**（公开）或 **Private**（私有）
 4. **不要**勾选「Add a README」「Add .gitignore」「Choose a license」，本地已经有了，勾了会冲突
 5. 点 **Create repository**
@@ -72,7 +72,7 @@ git status --short
 创建完页面会给你一个仓库地址，形如：
 
 ```
-https://github.com/你的用户名/ai-console.git
+https://github.com/你的用户名/xiaozu-workbench.git
 ```
 
 ---
@@ -80,7 +80,7 @@ https://github.com/你的用户名/ai-console.git
 ## 四、关联远程仓库并推送
 
 ```powershell
-git remote add origin https://github.com/你的用户名/ai-console.git
+git remote add origin https://github.com/你的用户名/xiaozu-workbench.git
 git branch -M main
 git push -u origin main
 ```

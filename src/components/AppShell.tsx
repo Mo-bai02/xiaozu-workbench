@@ -200,10 +200,10 @@ export function AppShell() {
 
   const brand = (
     <div className="brand">
-      <span className="brand-logo">AI</span>
+      <span className="brand-logo">组</span>
       {!collapsed && (
         <div className="brand-text">
-          <span className="brand-name">AI Console</span>
+          <span className="brand-name">小组工作台</span>
           <span className="brand-sub">{activeGroup?.name ?? '小组工作台'}</span>
         </div>
       )}

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "工作台：项目概览 / 任务看板 / 成员管理 + AI 助手（流式对话、表单生成、调用记录）",
+  "description": "小组工作台：任务 / 笔记 / 经费 / 专注 + AI 助手",
   "scripts": {
     "dev": "concurrently -n api,web -c magenta,cyan \"npm:api\" \"node scripts/run-with-local-tmp.mjs vite\"",
     "build": "tsc --noEmit && node scripts/run-with-local-tmp.mjs vite build",
